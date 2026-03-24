@@ -94,8 +94,8 @@ Sayfanın üstündeki yeşil **Code** butonuna tıklayıp **Download ZIP** seçe
 
 ---
 
-### 🇺🇸 Technical Setup (For Developers)
 PREREQUISITE: Python must be installed on your computer. To download Python, go to -> https://www.python.org/downloads/
+### 🇺🇸 Technical Setup (For Developers)
 1. `git clone https://github.com/furrkanyasar/Zenith-GNS.git`
 2. `pip install -r requirements.txt`
 3. `python main.py`
