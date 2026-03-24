@@ -98,12 +98,15 @@ class GNS3ManagerApp(ctk.CTk):
                 widget.destroy()
             self.sidebar_frame.destroy()
         try:
-            icon_path = r"C:\Users\HUAWEI\.gemini\antigravity\scratch\gns3_manager\app_icon.ico"
-            self.iconbitmap(icon_path)
+            # Get the directory of the current script (portable path)
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            icon_path = os.path.join(base_path, "app_icon.ico")
             
-            from PIL import Image, ImageTk
-            img = ImageTk.PhotoImage(Image.open(icon_path))
-            self.wm_iconphoto(True, img)
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+                from PIL import Image, ImageTk
+                img = ImageTk.PhotoImage(Image.open(icon_path))
+                self.wm_iconphoto(True, img)
         except Exception as e:
             print(f"Icon Load Error: {e}")
 
