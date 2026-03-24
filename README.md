@@ -74,7 +74,7 @@
 
 ## 🚀 Kurulum / Installation
 
-1. `git clone https://github.com/KULLANICI_ADIN/zenith-gns.git`
+1. `git clone https://github.com/furrkanyasar/zenith-gns.git`
 2. `pip install -r requirements.txt`
 3. `python main.py`
 
