@@ -4,6 +4,8 @@ import tkinter as tk
 from database import load_devices, add_device, delete_device, load_settings, save_settings
 from network_core import NetworkCore
 from translations import tr
+import webbrowser
+import os
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -149,6 +151,13 @@ class GNS3ManagerApp(ctk.CTk):
         self.btn_template = ctk.CTkButton(self.sidebar_frame, text=tr("Şablonlar"), command=self.show_template_config)
         self.btn_template.grid(row=8, column=0, padx=20, pady=10)
         add_tooltip(self.btn_template, tr("Değişken barındıran konfigürasyon şablonları oluşturur."))
+
+        self.created_by_label = ctk.CTkLabel(self.sidebar_frame, text="Created by Furkan Yaşar", font=ctk.CTkFont(size=12, weight="bold"))
+        self.created_by_label.grid(row=10, column=0, padx=20, pady=(10, 0), sticky="s")
+
+        self.github_link = ctk.CTkLabel(self.sidebar_frame, text="github.com/furrkanyasar", font=ctk.CTkFont(size=11, underline=True), text_color="#3b8ed0", cursor="hand2")
+        self.github_link.grid(row=11, column=0, padx=20, pady=(2, 20), sticky="s")
+        self.github_link.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/furrkanyasar"))
 
         # setup_sidebar only handles the sidebar now
 
