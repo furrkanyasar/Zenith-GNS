@@ -1,0 +1,22 @@
+# Python & IDE
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.vscode/
+.idea/
+
+# Database & Personal Settings (Kritik: Kendi cihaz kayıtlarını paylaşma)
+database.json
+settings.json
+*.log
+
+# Build & Dist
+build/
+dist/
+*.spec
+
+# OS
+.DS_Store
+Thumbs.db
