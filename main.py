@@ -4,6 +4,7 @@ import tkinter as tk
 from database import load_devices, add_device, delete_device, load_settings, save_settings
 from network_core import NetworkCore
 from translations import tr
+from report_generator import generate_report_async, capture_canvas_to_png
 import webbrowser
 import os
 
@@ -115,7 +116,7 @@ class GNS3ManagerApp(ctk.CTk):
         # Sidebar
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(9, weight=1)
+        self.sidebar_frame.grid_rowconfigure(10, weight=1)
 
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Zenith GNS", font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
@@ -152,11 +153,15 @@ class GNS3ManagerApp(ctk.CTk):
         self.btn_template.grid(row=8, column=0, padx=20, pady=10)
         add_tooltip(self.btn_template, tr("Değişken barındıran konfigürasyon şablonları oluşturur."))
 
+        self.btn_report = ctk.CTkButton(self.sidebar_frame, text=tr("Lab Raporu"), fg_color="#b5651d", hover_color="#8B4513", command=self.show_report_generator)
+        self.btn_report.grid(row=9, column=0, padx=20, pady=10)
+        add_tooltip(self.btn_report, tr("Topoloji, cihaz envanteri ve konfigürasyon bilgilerini içeren profesyonel bir lab raporu oluşturur."))
+
         self.created_by_label = ctk.CTkLabel(self.sidebar_frame, text="Created by Furkan Yaşar", font=ctk.CTkFont(size=12, weight="bold"))
-        self.created_by_label.grid(row=10, column=0, padx=20, pady=(10, 0), sticky="s")
+        self.created_by_label.grid(row=11, column=0, padx=20, pady=(10, 0), sticky="s")
 
         self.github_link = ctk.CTkLabel(self.sidebar_frame, text="github.com/furrkanyasar", font=ctk.CTkFont(size=11, underline=True), text_color="#3b8ed0", cursor="hand2")
-        self.github_link.grid(row=11, column=0, padx=20, pady=(2, 20), sticky="s")
+        self.github_link.grid(row=12, column=0, padx=20, pady=(2, 20), sticky="s")
         self.github_link.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/furrkanyasar"))
 
         # setup_sidebar only handles the sidebar now
@@ -811,6 +816,19 @@ class GNS3ManagerApp(ctk.CTk):
 
                     self.canvas.tag_lower("edge")
                     self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+                    # Auto-save topology snapshot for Lab Report
+                    def save_snapshot():
+                        try:
+                            from database import BASE_DIR
+                            snap_dir = os.path.join(BASE_DIR, "reports")
+                            os.makedirs(snap_dir, exist_ok=True)
+                            snap_path = os.path.join(snap_dir, "topology_snapshot.png")
+                            capture_canvas_to_png(self.canvas, snap_path)
+                        except Exception:
+                            pass
+                    self.after(500, save_snapshot)
+
                 self.after(0, update_canvas)
 
             self.network.get_topology_edges(devices, callback=draw_edges)
@@ -962,6 +980,130 @@ ip route {{{{TARGET_NETWORK}}}} {{{{TARGET_MASK}}}} {{{{NEXT_HOP_IP}}}}
         self.tpl_preview_box = ctk.CTkTextbox(self.main_frame, height=100)
         self.tpl_preview_box.grid(row=4, column=0, padx=20, pady=10, sticky="nsew")
         self.main_frame.grid_rowconfigure(4, weight=1)
+
+    def show_report_generator(self):
+        self.clear_main_frame()
+        from tkinter import filedialog
+        from database import BASE_DIR
+
+        header = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        header.grid(row=0, column=0, pady=(20, 10), padx=20, sticky="w")
+        ctk.CTkLabel(header, text=tr("Lab Raporu Oluşturucu"), font=ctk.CTkFont(size=24, weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(header, text=tr("Topoloji, cihaz envanteri ve konfigürasyon bilgilerini içeren profesyonel bir rapor oluşturun."), text_color="gray").pack(anchor="w", pady=(5,0))
+
+        # Options Frame
+        opts_frame = ctk.CTkFrame(self.main_frame)
+        opts_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+
+        # Format selection
+        ctk.CTkLabel(opts_frame, text=tr("Rapor Formatı:"), font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.report_format_var = ctk.StringVar(value="both")
+        ctk.CTkRadioButton(opts_frame, text="Markdown (.md)", variable=self.report_format_var, value="markdown").grid(row=0, column=1, padx=10, pady=10)
+        ctk.CTkRadioButton(opts_frame, text="PDF (.pdf)", variable=self.report_format_var, value="pdf").grid(row=0, column=2, padx=10, pady=10)
+        ctk.CTkRadioButton(opts_frame, text=tr("İkisi Birden"), variable=self.report_format_var, value="both").grid(row=0, column=3, padx=10, pady=10)
+
+        # Checkboxes
+        self.report_status_var = ctk.BooleanVar(value=True)
+        chk_status = ctk.CTkCheckBox(opts_frame, text=tr("Canlı Durum Bilgisi (Up/Down)"), variable=self.report_status_var)
+        chk_status.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+        add_tooltip(chk_status, tr("Her cihazın o anki erişilebilirlik durumunu rapora ekler."))
+
+        self.report_config_var = ctk.BooleanVar(value=True)
+        chk_config = ctk.CTkCheckBox(opts_frame, text=tr("Konfigürasyon Kesitleri (show ip route, show run | section router)"), variable=self.report_config_var)
+        chk_config.grid(row=2, column=0, columnspan=4, padx=10, pady=5, sticky="w")
+        add_tooltip(chk_config, tr("Her cihaza bağlanarak routing tablosu ve OSPF/EIGRP konfigürasyonunu rapora ekler. (GNS3 açık olmalı)"))
+
+        # Report folder selection
+        folder_frame = ctk.CTkFrame(opts_frame, fg_color="transparent")
+        folder_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=5, sticky="ew")
+
+        default_report_dir = os.path.join(BASE_DIR, "reports")
+        self.report_dir_var = ctk.StringVar(value=default_report_dir)
+
+        ctk.CTkLabel(folder_frame, text=tr("Kayıt Klasörü:"), font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 5))
+        report_dir_label = ctk.CTkLabel(folder_frame, text=default_report_dir, text_color="cyan")
+        report_dir_label.pack(side="left", padx=(0, 10))
+
+        def pick_report_folder():
+            new_dir = filedialog.askdirectory(title=tr("Rapor Klasörü Seç"))
+            if new_dir:
+                self.report_dir_var.set(new_dir)
+                report_dir_label.configure(text=new_dir)
+
+        btn_pick = ctk.CTkButton(folder_frame, text=tr("Klasörü Değiştir"), width=120, command=pick_report_folder)
+        btn_pick.pack(side="left")
+        add_tooltip(btn_pick, tr("Raporların kaydedileceği klasörü seçin."))
+
+        # Buttons frame
+        btn_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        btn_frame.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
+
+        def start_report():
+            btn_generate.configure(state="disabled", text=tr("Rapor Oluşturuluyor..."))
+            self.report_log_box.delete("1.0", "end")
+            self.report_log_box.insert("end", tr("Rapor oluşturma işlemi başlatıldı...") + "\n")
+
+            # Pre-capture topology: use already-saved snapshot from Live Map
+            report_dir = self.report_dir_var.get()
+            os.makedirs(report_dir, exist_ok=True)
+
+            # Check for existing snapshot (auto-saved by Live Map tab)
+            from database import BASE_DIR as _BASE
+            default_snap = os.path.join(_BASE, "reports", "topology_snapshot.png")
+            dest_snap = os.path.join(report_dir, "topology_snapshot.png")
+
+            if os.path.exists(default_snap):
+                # Copy snapshot to report dir if different
+                if os.path.abspath(default_snap) != os.path.abspath(dest_snap):
+                    import shutil
+                    shutil.copy2(default_snap, dest_snap)
+                self.report_log_box.insert("end", f"⏳ {tr('Topoloji görseli kaydedildi.')}\n")
+            else:
+                self.report_log_box.insert("end", f"⏳ {tr('Topoloji görseli yakalanamadı (önce Canlı Harita sekmesini açın).')}\n")
+
+            def progress_cb(stage, message):
+                def update_ui():
+                    if stage == "progress":
+                        self.report_log_box.insert("end", f"⏳ {message}\n")
+                    elif stage == "done":
+                        self.report_log_box.insert("end", f"\n🎉 {message}\n")
+                        btn_generate.configure(state="normal", text=tr("Raporu Oluştur"))
+                        btn_open_folder.configure(state="normal")
+                    elif stage == "error":
+                        self.report_log_box.insert("end", f"\n❌ {message}\n")
+                        btn_generate.configure(state="normal", text=tr("Raporu Oluştur"))
+                    self.report_log_box.see("end")
+                self.after(0, update_ui)
+
+            generate_report_async(
+                canvas_capture_func=None,
+                report_dir=report_dir,
+                report_format=self.report_format_var.get(),
+                include_status=self.report_status_var.get(),
+                include_config=self.report_config_var.get(),
+                progress_callback=progress_cb
+            )
+
+        btn_generate = ctk.CTkButton(btn_frame, text=tr("Raporu Oluştur"), fg_color="#b5651d", hover_color="#8B4513", command=start_report)
+        btn_generate.pack(side="left", padx=(0, 10))
+        add_tooltip(btn_generate, tr("Seçilen formatta lab raporunu oluşturur ve kaydeder."))
+
+        def open_report_folder():
+            report_dir = self.report_dir_var.get()
+            os.makedirs(report_dir, exist_ok=True)
+            os.startfile(report_dir)
+
+        btn_open_folder = ctk.CTkButton(btn_frame, text=tr("Rapor Klasörünü Aç"), fg_color="gray", hover_color="darkgray", command=open_report_folder, state="disabled")
+        btn_open_folder.pack(side="left")
+        add_tooltip(btn_open_folder, tr("Raporların kaydedildiği klasörü Windows gezgininde açar."))
+
+        # Log area
+        ctk.CTkLabel(self.main_frame, text=tr("İşlem Durumu:")).grid(row=3, column=0, padx=20, sticky="w")
+        self.report_log_box = ctk.CTkTextbox(self.main_frame, font=ctk.CTkFont(size=13))
+        self.report_log_box.grid(row=4, column=0, padx=20, pady=10, sticky="nsew")
+        self.main_frame.grid_rowconfigure(4, weight=1)
+        self.report_log_box.insert("end", tr("Rapor oluşturmak için yukarıdaki seçenekleri belirleyip 'Raporu Oluştur' butonuna basın.") + "\n")
+        self.report_log_box.insert("end", f"\n💡 {tr('İpucu: Rapora topoloji görseli eklemek için önce Canlı Harita sekmesini ziyaret edin.')}\n")
 
 if __name__ == "__main__":
     try:

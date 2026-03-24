@@ -11,11 +11,18 @@ venv/
 database.json
 settings.json
 *.log
+backups/
 
 # Build & Dist
 build/
 dist/
 *.spec
+reports/
+
+# One-off helper scripts (not part of the app)
+convert_icon.py
+fix_translations.py
+patch_main.py
 
 # OS
 .DS_Store

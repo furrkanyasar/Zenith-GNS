@@ -1,4 +1,4 @@
-# Zenith GNS - GNS3 Network Manager 
+# Zenith GNS - GNS3 Network Manager 🎩⚒️
 
 **Zenith GNS**, GNS3 ortamındaki Cisco network cihazlarını merkezi bir noktadan yönetmek, konfigüre etmek ve görselleştirmek için geliştirilmiş modern bir Python masaüstü uygulamasıdır. 
 
@@ -37,6 +37,11 @@
 - **Değişkenli Taslaklar:** `{{HOSTNAME}}`, `{{IP_ADDR}}` gibi değişkenler kullanarak şablonlar oluşturun.
 - **Dinamik Seçici:** Yanındaki tik kutuları sayesinde istemediğiniz satırları konfigürasyondan anında çıkartabilir, cihaz bilgilerini otomatik doldurarak önizleme alabilirsiniz.
 
+### 9. Lab Raporu (Lab Report Generator)
+- **Otomatik Rapor:** Topoloji görseli, cihaz envanteri, bağlantı matrisi, interface durumları ve konfigürasyon kesitlerini tek tıkla Markdown ve/veya PDF formatında raporlar.
+- **Klasör Seçimi:** Raporların kaydedileceği klasörü kendiniz belirleyebilirsiniz.
+- **Ekstra Bilgiler:** Cihaz uptime, IOS versiyonu ve routing tablosu otomatik olarak rapora eklenir.
+
 ---
 
 ## 🇺🇸 Application Tabs and Features (English)
@@ -70,12 +75,17 @@
 - **Variable-based Drafting:** Create templates using tags like `{{INTERFACE_NAME}}` or `{{TARGET_NETWORK}}`.
 - **Dynamic Variable Selector:** Enable/disable specific lines using checkboxes, auto-fill variables, and preview the generated config before pushing.
 
+### 9. Lab Report Generator
+- **Automated Documentation:** Generates a professional lab report including topology screenshot, device inventory, connection matrix, interface statuses, and config snippets in Markdown and/or PDF format.
+- **Folder Selection:** Choose where to save your reports.
+- **Extra Info:** Device uptime, IOS version, and routing tables are automatically included.
+
 ---
 
-##  Kurulum / Installation
+## 🚀 Kurulum / Installation
 
 ### 🇹🇷 Teknik Kurulum (Geliştiriciler İçin)
-1. `git clone https://github.com/KULLANICI_ADIN/zenith-gns.git`
+1. `git clone https://github.com/furrkanyasar/Zenith-GNS.git`
 2. `pip install -r requirements.txt`
 3. `python main.py`
 
@@ -85,7 +95,7 @@ Sayfanın üstündeki yeşil **Code** butonuna tıklayıp **Download ZIP** seçe
 ---
 
 ### 🇺🇸 Technical Setup (For Developers)
-1. `git clone https://github.com/KULLANICI_ADIN/zenith-gns.git`
+1. `git clone https://github.com/furrkanyasar/Zenith-GNS.git`
 2. `pip install -r requirements.txt`
 3. `python main.py`
 
@@ -95,3 +105,8 @@ Click the green **Code** button at the top and select **Download ZIP**. After ex
 ## 🛠️ Build (EXE)
 `build.bat` dosyasını çalıştırarak `dist/` klasörü altında standalone Windows executable dosyasını üretebilirsiniz.
 *Run `build.bat` to generate the standalone Windows executable in the `dist/` folder.*
+
+## 🛡️ Güvenlik / Security
+- **database.json:** Cihaz şifreleri düz metin olarak saklanır. Laboratuvar ortamı için tasarlanmıştır. / Device passwords are stored in plain text. Designed for lab environments.
+- **Telnet:** GNS3 varsayılan olarak Telnet kullandığı için trafik şifrelenmez. / Traffic is unencrypted as GNS3 defaults to Telnet.
+- **.gitignore:** `database.json`, `settings.json` ve `reports/` dosyaları otomatik olarak GitHub'dan hariç tutulur. / These files are automatically excluded from GitHub.
