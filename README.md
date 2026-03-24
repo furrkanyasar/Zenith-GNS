@@ -1,4 +1,4 @@
-# Zenith GNS - GNS3 Network Manager 🎩⚒️
+# Zenith GNS - GNS3 Network Manager 
 
 **Zenith GNS**, GNS3 ortamındaki Cisco network cihazlarını merkezi bir noktadan yönetmek, konfigüre etmek ve görselleştirmek için geliştirilmiş modern bir Python masaüstü uygulamasıdır. 
 
@@ -72,7 +72,7 @@
 
 ---
 
-## 🚀 Kurulum / Installation
+##  Kurulum / Installation
 
 ### 🇹🇷 Teknik Kurulum (Geliştiriciler İçin)
 1. `git clone https://github.com/KULLANICI_ADIN/zenith-gns.git`
