@@ -90,7 +90,7 @@
 3. `python main.py`
 
 ### 🇹🇷 Alternatif (Kolay Kurulum)
-Sayfanın üstündeki yeşil **Code** butonuna tıklayıp **Download ZIP** seçeneği ile projeyi indirin. ZIP dosyasını klasöre çıkardıktan sonra, içindeki `build.bat` dosyasına çift tıklayarak Python kurmaya gerek kalmadan `Zenith GNS.exe` dosyasını otomatik olarak oluşturabilirsiniz.
+Sayfanın üstündeki yeşil **Code** butonuna tıklayıp **Download ZIP** seçeneği ile projeyi indirin. ZIP dosyasını klasöre çıkardıktan sonra, içindeki `build.bat` dosyasına çift tıklayarak `Zenith GNS.exe` dosyasını otomatik olarak oluşturabilirsiniz.
 
 ---
 
@@ -101,7 +101,7 @@ PREREQUISITE: Python must be installed on your computer. To download Python, go 
 3. `python main.py`
 
 ### 🇺🇸 Alternative (Easy Setup)
-Click the green **Code** button at the top and select **Download ZIP**. After extracting the ZIP file, you can double-click the `build.bat` file to automatically generate the `Zenith GNS.exe` without needing to manually install Python or libraries.
+Click the green **Code** button at the top of the page and select **Download ZIP** to download the project. After extracting the ZIP file to a folder, double-click the `build.bat` file inside to automatically generate the `Zenith GNS.exe` file.
 
 ## Build (EXE)
 `build.bat` dosyasını çalıştırarak `dist/` klasörü altında standalone Windows executable dosyasını üretebilirsiniz.
