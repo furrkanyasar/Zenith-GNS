@@ -74,9 +74,23 @@
 
 ## 🚀 Kurulum / Installation
 
-1. `git clone https://github.com/furrkanyasar/zenith-gns.git`
+### 🇹🇷 Teknik Kurulum (Geliştiriciler İçin)
+1. `git clone https://github.com/KULLANICI_ADIN/zenith-gns.git`
 2. `pip install -r requirements.txt`
 3. `python main.py`
+
+### 🇹🇷 Alternatif (Kolay Kurulum)
+Sayfanın üstündeki yeşil **Code** butonuna tıklayıp **Download ZIP** seçeneği ile projeyi indirin. ZIP dosyasını klasöre çıkardıktan sonra, içindeki `build.bat` dosyasına çift tıklayarak Python kurmaya gerek kalmadan `Zenith GNS.exe` dosyasını otomatik olarak oluşturabilirsiniz.
+
+---
+
+### 🇺🇸 Technical Setup (For Developers)
+1. `git clone https://github.com/KULLANICI_ADIN/zenith-gns.git`
+2. `pip install -r requirements.txt`
+3. `python main.py`
+
+### 🇺🇸 Alternative (Easy Setup)
+Click the green **Code** button at the top and select **Download ZIP**. After extracting the ZIP file, you can double-click the `build.bat` file to automatically generate the `Zenith GNS.exe` without needing to manually install Python or libraries.
 
 ## 🛠️ Build (EXE)
 `build.bat` dosyasını çalıştırarak `dist/` klasörü altında standalone Windows executable dosyasını üretebilirsiniz.
