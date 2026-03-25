@@ -5,6 +5,12 @@
 *Zenith GNS is a modern Python desktop application developed to centrally manage, configure and visualize Cisco network devices in the GNS3 environment.*
 
 ---
+<img width="1916" height="1016" alt="Ekran görüntüsü 2026-03-24 162107" src="https://github.com/user-attachments/assets/52e90aab-1347-4289-9d5d-5af04223fe9f" />
+
+<img width="1918" height="1006" alt="Ekran görüntüsü 2026-03-24 162022" src="https://github.com/user-attachments/assets/e6a1ce4a-bc0f-46ef-addb-ce151ec4a10c" />
+
+<img width="1917" height="1001" alt="Ekran görüntüsü 2026-03-24 162201" src="https://github.com/user-attachments/assets/a7925f10-3763-49a7-9a51-3db1892de971" />
+
 
 ## 🛠️ Kurulum / Installation
 
