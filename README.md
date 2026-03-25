@@ -15,7 +15,7 @@
 ## 🛠️ Kurulum / Installation
 
 > [!TIP]
-> **Hızlı Başlangıç:** Eğer Python ile uğraşmak istemiyorsanız, sağ taraftaki **[Releases](https://github.com/furrkanyasar/Zenith-GNS/releases)** sekmesinden projenin hazır `.exe` halini indirip doğrudan kullanmaya başlayabilirsiniz! Windows SmartScreen uyarısı normaldir, uygulama tamamen açık kaynak ve güvenlidir.
+> **Hızlı Başlangıç:** Eğer Python ile uğraşmak istemiyorsanız, sağ taraftaki **[Releases](https://github.com/furrkanyasar/Zenith-GNS/releases)** sekmesinden projenin hazır `.exe` halini indirip doğrudan kullanmaya başlayabilirsiniz! Windows SmartScreen uyarısı normaldir, uygulama tamamen açık kaynak ve güvenilirdir.
 
 ### 🇹🇷 Teknik Kurulum (Geliştiriciler İçin)
 ÖNKOSUL: Bilgisayarınızda python yüklü olmalıdır. Python'u indirmek için -> https://www.python.org/downloads/
@@ -30,7 +30,7 @@ Sayfanın üstündeki yeşil **Code** butonuna tıklayıp **Download ZIP** seçe
 ---
 
 > [!TIP]
-> **Quick Start:** If you don't want to deal with Python setup, you can simply download the pre-built `.exe` from the **[Releases](https://github.com/furrkanyasar/Zenith-GNS/releases)** tab on the right and start using it immediately! The Windows SmartScreen warning is normal; the application is fully open-source and secure
+> **Quick Start:** If you don't want to deal with Python setup, you can simply download the pre-built `.exe` from the **[Releases](https://github.com/furrkanyasar/Zenith-GNS/releases)** tab on the right and start using it immediately! The Windows SmartScreen warning is normal; the application is fully open-source and reliable
 
 ### 🇺🇸 Technical Setup (For Developers)
 PREREQUISITE: Python must be installed on your computer. To download Python, go to -> https://www.python.org/downloads/
