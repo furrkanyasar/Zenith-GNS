@@ -5,15 +5,11 @@
 *Zenith GNS is a modern Python desktop application developed to centrally manage, configure and visualize Cisco network devices in the GNS3 environment.*
 
 ---
-## 🖼️ Preview
 
-<img width="1916" height="1024" alt="Ekran görüntüsü 2026-03-24 162218" src="https://github.com/user-attachments/assets/40b453c6-89c2-4882-a3ea-b1874d816a37" />
-<img width="1917" height="1001" alt="Ekran görüntüsü 2026-03-24 162201" src="https://github.com/user-attachments/assets/307222f8-d34f-46a8-b23d-240cf4f443ec" />
-<img width="1918" height="1006" alt="Ekran görüntüsü 2026-03-24 162022" src="https://github.com/user-attachments/assets/1ca3fce5-0828-4672-b4b4-517e46ffcbe8" />
+## 🛠️ Kurulum / Installation
 
-
-
-## 🚀 Kurulum / Installation
+> [!TIP]
+> **Hızlı Başlangıç:** Eğer Python ile uğraşmak istemiyorsanız, sağ taraftaki **[Releases](https://github.com/furrkanyasar/Zenith-GNS/releases)** sekmesinden projenin hazır `.exe` halini indirip doğrudan kullanmaya başlayabilirsiniz!
 
 ### 🇹🇷 Teknik Kurulum (Geliştiriciler İçin)
 ÖNKOSUL: Bilgisayarınızda python yüklü olmalıdır. Python'u indirmek için -> https://www.python.org/downloads/
@@ -26,6 +22,9 @@
 Sayfanın üstündeki yeşil **Code** butonuna tıklayıp **Download ZIP** seçeneği ile projeyi indirin. ZIP dosyasını klasöre çıkardıktan sonra, içindeki `build.bat` dosyasına çift tıklayarak `Zenith GNS.exe` dosyasını otomatik olarak oluşturabilirsiniz.
 
 ---
+
+> [!TIP]
+> **Quick Start:** If you don't want to deal with Python setup, you can simply download the pre-built `.exe` from the **[Releases](https://github.com/furrkanyasar/Zenith-GNS/releases)** tab on the right and start using it immediately!
 
 ### 🇺🇸 Technical Setup (For Developers)
 PREREQUISITE: Python must be installed on your computer. To download Python, go to -> https://www.python.org/downloads/
@@ -79,7 +78,6 @@ Tüm ağa aynı anda hükmetmenizi sağlayan güçlü bir araçtır.
 ### 3. Bireysel Konfigürasyon (Individual Configuration)
 Sadece hedeflenen cihaz üzerinde hassas ayar yapmak içindir.
 - **Cihaz Seçici:** Açılır menüden veritabanınızdaki herhangi bir cihazı seçerek odağınızı o cihaza alırsınız.
-- **Config Modu Kilidi:** "Config Modunda Çalıştır" seçeneği, gönderdiğiniz komutların başına otomatik olarak `configure terminal` komutunu ekler. Eğer sadece bilgi çekmek (Örn: `show ip route`) istiyorsanız bu seçeneği kapatmanız, uygulamanın daha temiz çıktı vermesini sağlar.
 - **Özel Komut Gönderimi:** Yazdığınız komutlar sadece seçilen cihaza gider. Bu sekme, bir cihazın ayarlarını tekil olarak kontrol etmek veya hızlıca bir arayüzü resetlemek için idealdir.
 
 ### 4. Yedekleme Yöneticisi (Backup Manager)
