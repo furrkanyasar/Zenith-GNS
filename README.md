@@ -72,6 +72,7 @@ Tüm ağa aynı anda hükmetmenizi sağlayan güçlü bir araçtır.
 ### 3. Bireysel Konfigürasyon (Individual Configuration)
 Sadece hedeflenen cihaz üzerinde hassas ayar yapmak içindir.
 - **Cihaz Seçici:** Açılır menüden veritabanınızdaki herhangi bir cihazı seçerek odağınızı o cihaza alırsınız.
+- **Config Modu Kilidi:** "Config Modunda Çalıştır" seçeneği, gönderdiğiniz komutların başına otomatik olarak `configure terminal` komutunu ekler. Eğer sadece bilgi çekmek (Örn: `show ip route`) istiyorsanız bu seçeneği kapatmanız, uygulamanın daha temiz çıktı vermesini sağlar.
 - **Özel Komut Gönderimi:** Yazdığınız komutlar sadece seçilen cihaza gider. Bu sekme, bir cihazın ayarlarını tekil olarak kontrol etmek veya hızlıca bir arayüzü resetlemek için idealdir.
 
 ### 4. Yedekleme Yöneticisi (Backup Manager)
