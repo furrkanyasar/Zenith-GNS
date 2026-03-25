@@ -96,66 +96,83 @@ GNS3 topolojinizi interaktif bir görsel şölene dönüştürür.
 - **Canlı Durum Işıkları:** Cihazların yanındaki ışıklar anlık erişilebilirlik durumunu (Yeşil/Kırmızı) gösterir.
 
 ### 8. Şablonlar (Templates)
-Karmaşık konfigürasyon taslaklarını değişkenler üzerinden hızla oluşturmanızı sağlar.
-- **Değişkenli Yapı:** Komutlar içine `{{VAR}}` şeklinde etiketler bırakabilirsiniz. Uygulama bu etiketleri otomatik olarak algılar ve size doldurmanız için bir form sunar.
-- **Hat Seçimi:** Şablondaki her satırın yanında birer onay kutusu bulunur. İstemediğiniz ayarları şablondan çıkartabilir, kalanlar üzerinde değişkenleri doldurup önizleme alabilirsiniz.
+Ağ cihazlarınıza standart konfigürasyonları (Örn: IP v6 etkinleştirme, yeni bir kullanıcı tanımlama veya SNMP ayarları) hızlıca ve hatasız bir şekilde basmanızı sağlayan en gelişmiş araçtır.
+- **Değişkenli Yapı (Dynamic Tagging):** Şablon metni içine `{{VAR_NAME}}` şeklinde etiketler bırakabilirsiniz. Örneğin `hostname {{HOSTNAME}}` yazdığınızda uygulama bu etiketi otomatik olarak algılar. Bu sayede her cihaz için ayrı döküman hazırlamak yerine tek bir şablonu tüm cihazlar için kullanabilirsiniz.
+- **Dinamik Değişken Formu:** Siz sol tarafa şablonu yazdıkça, sağ tarafta bu değişkenleri doldurmanız için otomatik giriş kutucukları açılır. Her cihaz için farklı olan IP adresleri, Hostname'ler veya Interface isimleri bu kutucuklar üzerinden hızla girilir.
+- **Satır Bazlı Onay (Checkboxes):** Şablondaki her komut satırının yanında birer onay kutusu bulunur. Eğer o an belirli bir komut satırını cihazlara göndermek istemiyorsanız, sadece o satırın tikini kaldırarak konfigürasyon taslağından geçici olarak çıkartabilirsiniz.
+- **Önizleme Butonu:** Tüm kutucukları doldurduktan sonra bu butona basarak, değişkenlerin şablon içindeki yerlerine yerleşmiş halini ve cihaza gönderilecek son halini kontrol edebilirsiniz. Hata payını sıfıra indiren kritik bir kontrol adımıdır.
+- **Cihaza Gönder:** Hazırladığınız ve kontrol ettiğiniz konfigürasyon taslağını seçili cihaza anında yükler ve cihazın bu komutlara verdiği cevabı alttaki çıktı alanında raporlar.
 
 ### 9. Lab Raporu (Lab Report Generator)
-Ödev, proje veya profesyonel dökümantasyon ihtiyacınızı tek tıkla çözer.
-- **Zengin Döküman:** Hazırlanan rapor; ağın haritasını, tüm cihazların o anki donanım özetini, hangi portun nereye bağlı olduğunu ve yapılan konfigürasyonların önemli kesitlerini içerir.
-- **Esnek Formatlar:** Profesyonel görünümlü bir **PDF** veya yazılım projeleriyle uyumlu **Markdown** dökümanı alabilirsiniz.
+Yaptığınız tüm çalışmaları, topolojiyi ve konfigürasyonları tek bir dökümanda toplayarak akademik veya profesyonel düzeyde dökümantasyon sunmanızı sağlar.
+- **Zengin Dökümantasyon Formatları:** Belgenizi ister sunumlar için profesyonel görünümlü bir **PDF**, ister yazılım dökümantasyon süreçleriyle uyumlu bir **Markdown (.md)** formatında alabilirsiniz. Hatta "İkisi Birden" seçeneğiyle her iki formatı da aynı anda üretebilirsiniz.
+- **İçerik Kontrolü:** 
+    - **Canlı Durum Bilgisi:** Her cihazın o anki erişilebilirlik (Up/Down) durumunu otomatik tarayarak rapora ekler.
+    - **Kapsamlı Konfigürasyon Kesitleri:** Her bir cihaza bağlanıp mevcut routing tablosunu, IP adreslerini ve OSPF/EIGRP gibi yönlendirme protokolü ayarlarını otomatik olarak rapora dahil eder.
+- **Rapor ve Klasör Yönetimi:** 
+    - **Klasörü Değiştir:** Raporların bilgisayarınızda hangi dizine kaydedileceğini özgürce seçmenize olanak tanır.
+    - **Rapor Klasörünü Aç:** Dosya gezgininde raporların kaydedildiği klasörü tek tıkla açarak dosyalarınıza hızlı erişim sağlar.
+- **Topoloji Görsel Entegrasyonu:** Eğer uygulamadaki "Canlı Harita" sekmesini ziyaret ettiyseniz, uygulamanın o an yakaladığı ağ haritası görüntüsü otomatik olarak rapora en üstte kapak görseli gibi eklenir.
 
 ---
 
 ## 📖 Detailed User Guide (EN)
 
 ### 1. Devices (Dashboard)
-The central inventory and management hub.
-- **Add Device Form:** Enter the Router Name, IP Address, and Console Port (usually 5000+ in GNS3) to manually add a device to your list.
-- **Auto-import from GNS3 (Recommended):** This button queries the GNS3 REST API to instantly detect all Cisco nodes in your active project and automatically fill their IP/Port details into your inventory.
-- **Device Actions:** Each listed device features quick-action buttons:
-    - **Status Check:** Establishes a brief connection to report real-time CPU load and the "Up/Down" status of every interface in a popup window.
-    - **Delete:** Permanently removes unwanted or obsolete device entries from the database.
+The central inventory and management hub for all your network assets.
+- **Add Device Form:** Enter the Router Name, IP Address, and Console Port (which can be found in your GNS3 device settings, usually 5000+ series) to manually register a device into your local database.
+- **Auto-import from GNS3 (Recommended):** This advanced feature queries the GNS3 REST API to instantly detect every Cisco node in your active project. It automatically fills their IP/Port details into your inventory, saving you from manual data entry.
+- **Device Actions:** Each listed device features targeted quick-action buttons:
+    - **Status Check:** Establishes a temporary connection to report real-time CPU load and the "Up/Down" state of every interface in a clean, readable window.
+    - **Delete:** Permanently removes unwanted or legacy device entries from the application's database.
 
 ### 2. Mass Configuration
-A powerful tool to control your entire network at once.
-- **Universal Input:** Every line written here is dispatched to all active devices in sequence. Perfect for universal settings like `banner` or `ntp server` updates.
-- **Config Mode Toggle:** "Run in Config Mode" automatically adds `configure terminal` before your commands. Uncheck this for pure inquiry commands (e.g., `show version`) to get cleaner logs.
-- **Execution Logs:** Highlights success or failure for each device with color-coded timestamps.
+A productivity-focused tool designed to control your entire network fabric simultaneously.
+- **Universal Input Area:** Every command line written in this box is dispatched to all active devices in your inventory sequentially. Use this for universal security policies, banner settings, or general interface resets.
+- **Config Mode Toggle:** The "Run in Config Mode" toggle automatically adds the `configure terminal` prefix to your command set. For pure troubleshooting or data extraction (e.g., `show version`), unchecking this ensures a faster and cleaner output logs.
+- **Execution Logs:** Highlights success or failure for each device with color-coded timestamps and raw console feedback in the log area.
 
 ### 3. Individual Configuration
-Precision tuning for a specific targeted device.
-- **Device Selector:** Use the dropdown menu to focus on a single device from your inventory.
-- **Targeted Deployment:** Commands sent through this tab only affect the chosen node. Ideal for debugging specific interface issues or applying unique routing rules.
+Precision management and granular tuning for a specific targeted device.
+- **Device Selector:** Use the dropdown menu to pick a single target node from your database.
+- **Targeted Deployment:** Commands sent through this tab affect only the chosen node. This is the ideal environment for debugging interface-specific routing issues or applying unique VLAN configurations.
 
 ### 4. Backup Manager
-History-tracking and protection for your network configurations.
-- **Smart Backup:** The "Backup All" feature connects to every node, pulls the `show running-config` output, and archives it with a timestamped filename.
-- **Internal Viewer:** Browse and copy settings from your past backups directly within the app using the integrated text viewer.
+A version-tracking and safety system for your network configurations.
+- **One-Click Smart Backup:** The "Backup All" feature connects to every node in your network, pulls the active `show running-config` data, and archives it locally with a clear timestamped filename.
+- **Integrated File Viewer:** Browse and analyze your historical backups directly within the app's internal text viewer without the need for external editors.
 
 ### 5. Diff Tool (Comparison)
-Identifies configuration drift between different points in time or different devices.
-- **A/B Selectors:** Compare two different backup files (e.g., Yesterday vs Today) side-by-side.
-- **Visual Highlighting:** Uses **Red** for lines removed from the original and **Green** for new lines added, making troubleshooting very fast.
+Instantly identifies configuration drift or changes between two points in time.
+- **A/B File Selectors:** Compare two different backup files side-by-side. For example, compare "Yesterday's Working Config" against "Today's Current Settings".
+- **Intelligent Visual Highlighting:** Uses **Red** for configuration lines that were removed from the original and **Green** for new lines that were added, simplifying root-cause analysis for failures.
 
 ### 6. Ping Sweep
-Bulk ICMP testing to verify reachability across the network fabric.
-- **Target Range Support:** Enter a single destination or multiple targets separated by commas.
-- **Source Selection:** Choose which router (or all of them) should act as the source. This is crucial for tracing asymmetrical routing issues.
+Bulk ICMP testing to audit reachability across your internal or external network paths.
+- **Bulk Target Support:** Enter a single destination IP or multiple targets separated by commas to test multiple paths at once.
+- **Flexible Source Selection:** Choose which specific router (or "All Devices") should act as the ping source. This is a critical tool for tracing asymmetrical routing issues or firewall blocks.
 
 ### 7. Live Topology Map
-Transforms your static GNS3 setup into an interactive visual dashboard.
-- **Interactive Canvas:** Drag devices and use the zoom/pan features to navigate through complex topologies with ease.
-- **Dynamic Link Labels:** Cables are automatically labeled with their specific interface names (e.g., Gi0/0 to Fa0/1).
-- **Node Status Indicators:** Color-coded rings around icons reflect real-time connectivity status (Green for Up, Red for Down).
+Transforms your static GNS3 setup into a dynamic, interactive visual command center.
+- **Interactive Map Canvas:** Freely drag devices, pan across the canvas, and use the Zoom In/Out features to navigate through complex, large-scale topologies.
+- **Intelligent Link Labels:** Physical cables are automatically labeled with their specific source and destination interface names (e.g., Gi0/1 on RouterA to Fa0/0 on RouterB).
+- **Node Status Indicators:** Dynamic color-coded rings around icons reflect the real-time connectivity state (Green for Active/Up, Red for Offline/Down).
 
 ### 8. Templates
-Speed up deployment of complex configurations using logic and variables.
-- **Variable-based Drafting:** Use `{{TAG}}` format within your configs. The app detects these tags and generates a custom form for you to fill.
-- **Line-by-Line Control:** Each template line features a checkbox. You can exclude specific settings on the fly, preview the rendered result, and push it to the device button-free.
+High-speed deployment of complex, standardized configurations using logic and variables.
+- **Variable-based Drafting:** Use `{{TAG}}` placeholders within your configuration text. The app detects these tags and generates a custom data-entry form for you instantly. This allows you to use one master template for IP addresses, hostnames, or specific VLAN IDs across different routers.
+- **Granular Line-by-Line Control:** Every line in your template has its own checkbox. You can exclude specific commands on the fly just by unchecking them, ensuring only the necessary configuration reaches the device.
+- **Preview Engine:** After filling out your variables, use the "Preview" button to see the final rendered output. This step allows for a final validation of syntax before pushing to production.
+- **Send to Device:** Deploys the verified result as a configuration block to the selected target node and reports the console output in the log box.
 
 ### 9. Lab Report Generator
-Solves documentation needs with a single click—perfect for students and engineers.
-- **Rich Documentation:** Includes the network map, hardware inventory summaries, cable matrix, and critical configuration snippets.
-- **Formats:** Export as a professional-grade **PDF** or a clean **Markdown** file.
+Solves all your documentation, topology, and configuration recording needs in a single document, allowing you to present at an academic or professional level.
+- **Rich Documentation Formats:** Export your document as a professional-grade, print-ready **PDF** or as a web-compatible **Markdown (.md)** file. You can even choose to generate both versions simultaneously.
+- **Data Integration Options:** 
+    - **Live Connectivity Status:** Automatically scans and includes each device's "Up/Down" state at the time of generation.
+    - **Comprehensive Configuration Snippets:** Connects to each device and automatically includes current routing tables, IP addresses, and critical network settings like OSPF/EIGRP.
+- **File and Directory Handling:** 
+    - **Change Target Folder:** Full control over where your reports are saved on your computer.
+    - **Open Folder Shortcut:** A quick button to open the report's destination in Windows Explorer.
+- **Visual Capture Integration:** If you have visited the "Live Map" tab, the application's most recent snapshot of your topology is embedded at the top of the report, providing a visual overhead view of the entire lab.
 
