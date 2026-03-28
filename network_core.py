@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import socket
 import time
+from translations import tr
 
 def wake_up_console(ip, port):
     # GNS3 console uyku modundan çıkarsın ve config modundaysa geri dönsün diye raw komut atıyoruz
@@ -17,8 +18,8 @@ def wake_up_console(ip, port):
 
 class NetworkCore:
     def __init__(self):
-        # Backup dir is now dynamic
-        pass
+        self.sessions = {}  # Store for Netmiko connection objects: {device_name: connection}
+        self.lock = threading.Lock() # To prevent race conditions when creating sessions
 
     def _get_connection_dict(self, device):
         # Maps our database device format to Netmiko kwargs
@@ -31,21 +32,61 @@ class NetworkCore:
             'secret': device.get('password', ''), # Normally enable secret
             'global_delay_factor': 4, # Increased for GNS3 virtual routers
             'timeout': 60, # Increased connection timeout
-            'fast_cli': False, # Sometimes GNS3 telnet is too slow for fast_cli
-            'session_log': f"{device['name']}_session.log", # Debugging için log
-            'global_cmd_verify': False # GNS3 console echo issues
+            'fast_cli': False, 
+            'global_cmd_verify': False 
         }
+
+    def _get_session(self, device, force_reconnect=False):
+        """Returns an active Netmiko session for the device, creating it if necessary."""
+        name = device['name']
+        with self.lock:
+            # Check if session exists and is alive
+            if not force_reconnect and name in self.sessions:
+                conn = self.sessions[name]
+                try:
+                    # Simple keep-alive/check
+                    if conn.is_alive():
+                        return conn
+                except Exception:
+                    pass
+                # If we reach here, connection is dead
+                try: conn.disconnect()
+                except: pass
+                del self.sessions[name]
+
+            # Establish new session
+            try:
+                wake_up_console(device['ip'], int(device['port']))
+                conn_dict = self._get_connection_dict(device)
+                net_connect = ConnectHandler(**conn_dict)
+                try:
+                    net_connect.enable()
+                except:
+                    pass
+                self.sessions[name] = net_connect
+                return net_connect
+            except Exception as e:
+                raise Exception(f"Failed to connect to {name}: {str(e)}")
+
+    def disconnect_all(self):
+        """Closes all active sessions."""
+        with self.lock:
+            for name, conn in list(self.sessions.items()):
+                try:
+                    conn.disconnect()
+                except:
+                    pass
+            self.sessions.clear()
 
     def backup_config(self, device, backup_dir="backups", callback=None):
         def task():
             try:
-                wake_up_console(device['ip'], int(device['port']))
-                conn_dict = self._get_connection_dict(device)
-                with ConnectHandler(**conn_dict) as net_connect:
-                    try:
-                        net_connect.enable()
-                    except:
-                        pass # May not be needed if already in priv level 15
+                net_connect = self._get_session(device)
+                try:
+                    output = net_connect.send_command("show running-config")
+                except Exception:
+                    # Retry once if session was stale
+                    net_connect = self._get_session(device, force_reconnect=True)
                     output = net_connect.send_command("show running-config")
                     
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -68,14 +109,18 @@ class NetworkCore:
         
         def task(device):
             try:
-                wake_up_console(device['ip'], int(device['port']))
-                conn_dict = self._get_connection_dict(device)
-                with ConnectHandler(**conn_dict) as net_connect:
-                    try:
-                        net_connect.enable()
-                    except:
-                        pass
-                    
+                net_connect = self._get_session(device)
+                try:
+                    if config_mode:
+                        output = net_connect.send_config_set(commands_list, cmd_verify=False, read_timeout=30)
+                    else:
+                        output = ""
+                        for cmd in commands_list:
+                            output += f"\n{device['name']}# {cmd}\n"
+                            output += net_connect.send_command(cmd, read_timeout=30)
+                except Exception:
+                    # Smart Retry
+                    net_connect = self._get_session(device, force_reconnect=True)
                     if config_mode:
                         output = net_connect.send_config_set(commands_list, cmd_verify=False, read_timeout=30)
                     else:
@@ -96,15 +141,15 @@ class NetworkCore:
     def get_device_status(self, device, callback=None):
         def task():
             try:
-                wake_up_console(device['ip'], int(device['port']))
-                conn_dict = self._get_connection_dict(device)
-                with ConnectHandler(**conn_dict) as net_connect:
-                    try:
-                        net_connect.enable()
-                    except:
-                        pass
+                net_connect = self._get_session(device)
+                try:
                     interfaces = net_connect.send_command("show ip interface brief")
                     cpu = net_connect.send_command("show processes cpu | include one minute|five minutes")
+                except Exception:
+                    net_connect = self._get_session(device, force_reconnect=True)
+                    interfaces = net_connect.send_command("show ip interface brief")
+                    cpu = net_connect.send_command("show processes cpu | include one minute|five minutes")
+
                 if callback:
                     callback(True, {"interfaces": interfaces, "cpu": cpu}, device['name'])
             except Exception as e:
@@ -118,38 +163,37 @@ class NetworkCore:
 
         def task(device):
             try:
-                wake_up_console(device['ip'], int(device['port']))
-                conn_dict = self._get_connection_dict(device)
-                with ConnectHandler(**conn_dict) as net_connect:
-                    try:
-                        net_connect.enable()
-                    except:
-                        pass
-                    
+                net_connect = self._get_session(device)
+                def run_ping(conn):
                     for ip in target_ips:
                         try:
-                            output = net_connect.send_command(f"ping {ip} repeat 3", read_timeout=30)
-                            
+                            output = conn.send_command(f"ping {ip} repeat 3", read_timeout=30)
                             import re
                             match = re.search(r'Success rate is \d+ percent \((\d+)/(\d+)\)', output)
                             success_count = match.group(1) if match else "0"
                             total_count = match.group(2) if match else "3"
-
-                            if "!!!" in output:
-                                status = "SUCCESS"
-                            elif "U.U.U" in output or "UUU" in output:
-                                status = "UNREACHABLE"
-                            elif "..." in output:
-                                status = "TIMEOUT"
-                            else:
-                                status = "UNKNOWN"
-                                
+                            success_int = int(success_count)
+                            if success_int > 0: status = "SUCCESS"
+                            elif "U.U.U" in output or "UUU" in output: status = "UNREACHABLE"
+                            elif "..." in output: status = "TIMEOUT"
+                            else: status = "UNKNOWN"
+                            
                             if callback:
-                                custom_out = f"Gönderilen: {total_count}, Başarılı: {success_count}"
-                                callback(device['name'], status, custom_out, ip)
+                                # f-string parts are localized via tr()
+                                callback(device['name'], status, f"{tr('Gönderilen')}: {total_count}, {tr('Başarılı')}: {success_count}", ip)
                         except Exception as e:
-                            if callback:
-                                callback(device['name'], "ERROR", str(e), ip)
+                            if callback: callback(device['name'], "ERROR", str(e), ip)
+
+                try:
+                    run_ping(net_connect)
+                except Exception:
+                    net_connect = self._get_session(device, force_reconnect=True)
+                    run_ping(net_connect)
+
+            except Exception as e:
+                for ip in target_ips:
+                    if callback:
+                        callback(device['name'], "BAĞLANTI HATASI", str(e), ip)
             except Exception as e:
                 for ip in target_ips:
                     if callback:
@@ -161,13 +205,11 @@ class NetworkCore:
     def auto_discover_gns3(self, seed_device, callback=None):
         def task():
             try:
-                wake_up_console(seed_device['ip'], int(seed_device['port']))
-                conn_dict = self._get_connection_dict(seed_device)
-                with ConnectHandler(**conn_dict) as net_connect:
-                    try:
-                        net_connect.enable()
-                    except:
-                        pass
+                net_connect = self._get_session(seed_device)
+                try:
+                    output = net_connect.send_command("show cdp neighbors")
+                except Exception:
+                    net_connect = self._get_session(seed_device, force_reconnect=True)
                     output = net_connect.send_command("show cdp neighbors")
                 
                 neighbors = []
@@ -242,7 +284,7 @@ class NetworkCore:
 
         threading.Thread(target=task, daemon=True).start()
 
-    def get_topology_edges(self, devices, callback=None):
+    def get_topology_data(self, devices, callback=None):
         def run_all():
             try:
                 import urllib.request
@@ -290,7 +332,9 @@ class NetworkCore:
                     credentials = base64.b64encode(f"{api_user}:{api_pass}".encode()).decode()
                     headers['Authorization'] = f'Basic {credentials}'
                     
-                edges = set()
+                all_edges = set()
+                all_node_positions = {} # {name: (x, y)}
+
                 req = urllib.request.Request(f"{api_server}/v2/projects", headers=headers)
                 with urllib.request.urlopen(req, timeout=5) as response:
                     projects = json.loads(response.read().decode())
@@ -305,7 +349,14 @@ class NetworkCore:
                     with urllib.request.urlopen(req, timeout=5) as response:
                         nodes = json.loads(response.read().decode())
                         
-                    node_map = {n['node_id']: n['name'] for n in nodes}
+                    node_map = {}
+                    for n in nodes:
+                        node_id = n.get('node_id')
+                        name = n.get('name', '')
+                        node_map[node_id] = name
+                        if name:
+                            # Store (x, y, project_id, node_id)
+                            all_node_positions[name] = (n.get('x', 0), n.get('y', 0), project_id, node_id)
                     
                     req = urllib.request.Request(f"{api_server}/v2/projects/{project_id}/links", headers=headers)
                     with urllib.request.urlopen(req, timeout=5) as response:
@@ -322,21 +373,79 @@ class NetworkCore:
                             lbl1 = n1.get('label', {}).get('text', f"P{n1.get('port_number')}")
                             lbl2 = n2.get('label', {}).get('text', f"P{n2.get('port_number')}")
                             
-                            # Clean up labels (sometimes GNS3 has extra formatting in labels)
                             if name1 and name2:
                                 if name1 > name2:
                                     name1, name2 = name2, name1
                                     lbl1, lbl2 = lbl2, lbl1
-                                edges.add((name1, name2, lbl1, lbl2))
+                                all_edges.add((name1, name2, lbl1, lbl2))
                 
                 if callback:
-                    callback(list(edges))
+                    callback({'edges': list(all_edges), 'positions': all_node_positions})
             except Exception as e:
                 print(f"Topology API Failed: {e}")
                 if callback:
-                    callback([])
+                    callback({'edges': [], 'positions': {}})
             
         threading.Thread(target=run_all, daemon=True).start()
+
+    def update_node_position(self, project_id, node_id, x, y):
+        """GNS3 REST API üzerinden cihazın koordinatlarını günceller"""
+        def task():
+            try:
+                import urllib.request
+                import json
+                import base64
+                import configparser
+                import os
+                
+                api_user = ""
+                api_pass = ""
+                api_server = "http://localhost:3080"
+                
+                gns3_appdata = os.path.join(os.environ.get('APPDATA', ''), 'GNS3')
+                gns3_ini = None
+                
+                if os.path.exists(gns3_appdata):
+                    try:
+                        folders = [f for f in os.listdir(gns3_appdata) if os.path.isdir(os.path.join(gns3_appdata, f)) and f.replace('.', '').isdigit()]
+                        if folders:
+                            latest_folder = sorted(folders, key=lambda x: [int(p) for p in x.split('.')])[-1]
+                            potential_ini = os.path.join(gns3_appdata, latest_folder, 'gns3_server.ini')
+                            if os.path.exists(potential_ini):
+                                gns3_ini = potential_ini
+                    except Exception:
+                        pass
+                
+                if gns3_ini and os.path.exists(gns3_ini):
+                    try:
+                        config = configparser.ConfigParser()
+                        config.read(gns3_ini, encoding='utf-8')
+                        if config.has_section('Server'):
+                            if config.getboolean('Server', 'auth', fallback=False):
+                                api_user = config.get('Server', 'user', fallback='')
+                                api_pass = config.get('Server', 'password', fallback='')
+                            ini_host = config.get('Server', 'host', fallback='localhost')
+                            ini_port = config.get('Server', 'port', fallback='3080')
+                            ini_protocol = config.get('Server', 'protocol', fallback='http')
+                            api_server = f"{ini_protocol}://{ini_host}:{ini_port}"
+                    except Exception:
+                        pass
+                        
+                headers = {'Content-Type': 'application/json'}
+                if api_user or api_pass:
+                    credentials = base64.b64encode(f"{api_user}:{api_pass}".encode()).decode()
+                    headers['Authorization'] = f'Basic {credentials}'
+                
+                payload = json.dumps({"x": int(x), "y": int(y)}).encode('utf-8')
+                url = f"{api_server}/v2/projects/{project_id}/nodes/{node_id}"
+                
+                req = urllib.request.Request(url, data=payload, headers=headers, method='PUT')
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    pass # Success
+            except Exception as e:
+                print(f"GNS3 Position Sync Failed: {e}")
+                
+        threading.Thread(target=task, daemon=True).start()
 
     def blind_discover_gns3(self, callback=None):
         def task():

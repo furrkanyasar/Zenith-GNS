@@ -77,7 +77,7 @@ EN_DICT = {
     "Gözat": "Browse",
     "KARŞILAŞTIR": "COMPARE",
     "Listeyi Yenile": "Refresh List",
-    "Dosyalar tamamen aynı veya fark bulunamadı.\\n": "Files are exactly the same or no differences found.\\n",
+    "Dosyalar tamamen aynı veya fark bulunamadı.": "Files are exactly the same or no differences found.",
     "HATA: Seçilen dosyalardan biri veya ikisi bulunamadı!\\nDosya A: ": "ERROR: One or both files could not be found!\\nFile A: ",
     
     # Ping Sweep
@@ -95,7 +95,7 @@ EN_DICT = {
 
     # Live Map
     "Live Topology Map": "Live Topology Map",
-    "Cihazların çalışma durumlarını canlı izleyin. (Kablolar çalışması için CDP aktif olmalıdır)": "Monitor device statuses live. (CDP must be active for cables)",
+    "Cihazların çalışma durumlarını canlı izleyin. GNS3 yerleşimi otomatik senkronize edilir, cihazları sürükleyerek GNS3'teki konumlarını güncelleyebilirsiniz.": "Monitor device status live. GNS3 layout is automatically synced, you can drag devices to update their positions in GNS3.",
     "Durumları Yenile": "Refresh Status",
     "Yakınlaştır (+)": "Zoom In (+)",
     "Uzaklaştır (-)": "Zoom Out (-)",
@@ -210,7 +210,7 @@ EN_DICT = {
     "Her cihaza bağlanarak routing tablosu ve OSPF/EIGRP konfigürasyonunu rapora ekler. (GNS3 açık olmalı)": "Connects to each device and adds routing table and OSPF/EIGRP config to the report. (GNS3 must be running)",
     "Raporu Oluştur": "Generate Report",
     "Rapor Oluşturuluyor...": "Generating Report...",
-    "Rapor oluşturma işlemi başlatıldı...\\n": "Report generation started...\\n",
+    "Rapor oluşturma işlemi başlatıldı...": "Report generation started...",
     "Seçilen formatta lab raporunu oluşturur ve kaydeder.": "Generates and saves the lab report in the selected format.",
     "Rapor Klasörünü Aç": "Open Report Folder",
     "Raporların kaydedildiği klasörü Windows gezgininde açar.": "Opens the folder containing reports in Windows File Explorer.",
@@ -233,6 +233,24 @@ EN_DICT = {
     "Kaydedilen dosyalar:": "Saved files:",
     "Klasör:": "Folder:",
     "Rapor oluşturulurken hata:": "Error generating report:",
+    
+    # Missing / New
+    "Cihaz durumları kontrol ediliyor (Paralel)...": "Checking device statuses (Parallel)...",
+    "Konfigürasyon kesitleri alınıyor (Paralel)...": "Fetching configuration snippets (Parallel)...",
+    "tamamlandı.": "completed.",
+    "Komutlar ağ geneline iletiliyor...": "Commands are being broadcasted...",
+    "Tüm cihazlar için ağ yedeklemesi başlatılıyor...": "Network backup starting for all devices...",
+    "kaynağından": "from",
+    "hedeflerine tarama başlatılıyor...": "targets sweep started...",
+    "Bilinmiyor": "Unknown",
+    "Gönderilen": "Sent",
+    "Başarılı": "Success",
+    "Tüm cihazlar yedeklendi": "All devices backed up",
+    "Tüm cihazlara 'show run' gönderip dönen çıktıyı kaydeder.": "Sends 'show run' to all devices and saves the output.",
+    "(Ayar yapmıyorsanız, sadece 'show' komutu atıyorsanız işareti KALDIRIN)": "(If you are not configuring, but only sending 'show' commands, UNCHECK this)",
+    "HATA: Seçilen dosyalardan biri veya ikisi bulunamadı!": "ERROR: One or both selected files could not be found!",
+    "Var mı": "Exists",
+    "Lütfen geçerli dosyalar seçin.": "Please select valid files.",
 }
 
 def tr(text):

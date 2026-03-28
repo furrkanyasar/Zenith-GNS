@@ -7,6 +7,7 @@ import os
 import threading
 import socket
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from database import load_devices, load_settings, BASE_DIR
 from translations import tr
 
@@ -39,8 +40,8 @@ def check_device_status(ip, port):
         return False
 
 
-def get_config_snippet(device, commands=None):
-    """Fetches configuration snippets from a device via Netmiko."""
+def get_config_snippet(network_core, device, commands=None):
+    """Fetches configuration snippets from a device via pooled NetworkCore sessions."""
     if commands is None:
         commands = [
             "show ip route",
@@ -50,35 +51,22 @@ def get_config_snippet(device, commands=None):
         ]
 
     try:
-        from network_core import wake_up_console
-        from netmiko import ConnectHandler
-
-        wake_up_console(device['ip'], int(device['port']))
-        conn_dict = {
-            'device_type': device.get('device_type', 'cisco_ios_telnet'),
-            'host': device['ip'],
-            'username': device.get('username', ''),
-            'password': device.get('password', ''),
-            'port': int(device.get('port', 23)),
-            'secret': device.get('password', ''),
-            'global_delay_factor': 4,
-            'timeout': 60,
-            'fast_cli': False,
-            'global_cmd_verify': False,
-        }
-
+        net_connect = network_core._get_session(device)
         results = {}
-        with ConnectHandler(**conn_dict) as net_connect:
-            try:
-                net_connect.enable()
-            except Exception:
-                pass
+        def run_cmds(conn):
             for cmd in commands:
                 try:
-                    output = net_connect.send_command(cmd, read_timeout=30)
-                    results[cmd] = output
+                    results[cmd] = conn.send_command(cmd, read_timeout=30)
                 except Exception as e:
                     results[cmd] = f"Error: {str(e)}"
+
+        try:
+            run_cmds(net_connect)
+        except Exception:
+            # Retry with fresh session
+            net_connect = network_core._get_session(device, force_reconnect=True)
+            run_cmds(net_connect)
+            
         return results
     except Exception as e:
         return {cmd: f"Connection Error: {str(e)}" for cmd in commands}
@@ -476,11 +464,12 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
     return pdf_filename
 
 
-def generate_report_async(canvas_capture_func, report_dir, report_format="both",
+def generate_report_async(network_core, canvas_capture_func, report_dir, report_format="both",
                           include_status=True, include_config=True,
                           progress_callback=None):
     """
     Main entry point: generates the report in a background thread.
+    network_core: the NetworkCore instance for pooled connections
     canvas_capture_func: a callable that captures the canvas to a file path (called from main thread)
     report_dir: the directory to save reports into
     progress_callback(stage, message) is called to update UI.
@@ -504,23 +493,37 @@ def generate_report_async(canvas_capture_func, report_dir, report_format="both",
                 progress_callback("progress", tr("GNS3 API'den topoloji bilgisi alınıyor..."))
             edges, project_name = get_topology_links_sync()
 
-            # 3. Check device statuses
+            # 3. Check device statuses (Parallelized for speed)
             device_statuses = {}
             if include_status:
                 if progress_callback:
-                    progress_callback("progress", tr("Cihaz durumları kontrol ediliyor..."))
-                for d in devices:
-                    device_statuses[d['name']] = check_device_status(d['ip'], d['port'])
+                    progress_callback("progress", tr("Cihaz durumları kontrol ediliyor (Paralel)..."))
+                
+                with ThreadPoolExecutor(max_workers=min(len(devices), 20)) as status_exec:
+                    future_to_dev = {status_exec.submit(check_device_status, d['ip'], d['port']): d['name'] for d in devices}
+                    for future in as_completed(future_to_dev):
+                        dname = future_to_dev[future]
+                        try:
+                            device_statuses[dname] = future.result()
+                        except Exception:
+                            device_statuses[dname] = False
 
-            # 4. Get config snippets
+            # 4. Get config snippets (Parallelized for massive speedup)
             config_snippets = {}
             if include_config:
                 if progress_callback:
-                    progress_callback("progress", tr("Konfigürasyon kesitleri alınıyor (bu biraz sürebilir)..."))
-                for d in devices:
-                    if progress_callback:
-                        progress_callback("progress", f"  ↳ {d['name']} {tr('cihazına bağlanılıyor...')}")
-                    config_snippets[d['name']] = get_config_snippet(d)
+                    progress_callback("progress", tr("Konfigürasyon kesitleri alınıyor (Paralel)..."))
+                
+                with ThreadPoolExecutor(max_workers=min(len(devices), 15)) as config_exec:
+                    future_to_config = {config_exec.submit(get_config_snippet, network_core, d): d['name'] for d in devices}
+                    for future in as_completed(future_to_config):
+                        dname = future_to_config[future]
+                        if progress_callback:
+                            progress_callback("progress", f"  [+] {dname} {tr('tamamlandı.')}")
+                        try:
+                            config_snippets[dname] = future.result()
+                        except Exception as e:
+                            config_snippets[dname] = {"Error": str(e)}
 
             # 5. Generate reports
             generated_files = []
@@ -552,7 +555,7 @@ def generate_report_async(canvas_capture_func, report_dir, report_format="both",
                 generated_files.append(pdf_file)
 
             if progress_callback:
-                files_str = "\n".join([f"  ✅ {os.path.basename(f)}" for f in generated_files])
+                files_str = "\n".join([f"  [+] {os.path.basename(f)}" for f in generated_files])
                 progress_callback("done",
                     f"{tr('Rapor başarıyla oluşturuldu!')}\n\n"
                     f"{tr('Kaydedilen dosyalar:')}\n{files_str}\n\n"

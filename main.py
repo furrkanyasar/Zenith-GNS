@@ -81,7 +81,16 @@ class GNS3ManagerApp(ctk.CTk):
         self.main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.main_frame.grid(row=1, column=1, sticky="nsew")
 
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.show_dashboard()
+
+    def on_closing(self):
+        """Cleanup before exiting."""
+        try:
+            self.network.disconnect_all()
+        except:
+            pass
+        self.destroy()
 
     def change_language(self, choice):
         # from database import load_settings, save_settings # Already imported at the top
@@ -308,7 +317,7 @@ class GNS3ManagerApp(ctk.CTk):
                 self.after(0, lambda: self.log_box.insert("end", msg + "-"*30 + "\n"))
 
             self.log_box.delete("1.0", "end")
-            self.log_box.insert("end", tr("Komutlar ağ geneline iletiliyor...\n\n"))
+            self.log_box.insert("end", tr("Komutlar ağ geneline iletiliyor...") + "\n\n")
             self.network.send_mass_commands(devices, commands, config_mode=self.mass_config_chk_var.get(), callback=cb)
 
         btn_send = ctk.CTkButton(self.main_frame, text=tr("Tümüne Gönder"), command=run_mass_config)
@@ -338,7 +347,8 @@ class GNS3ManagerApp(ctk.CTk):
         self.dev_dropdown.pack(side="left")
 
         self.indiv_config_chk_var = ctk.BooleanVar(value=True)
-        chk_indiv = ctk.CTkCheckBox(top_frame, text=tr("Config Modunda Çalıştır"), variable=self.indiv_config_chk_var)
+        warning_text = " " + tr("(Ayar yapmıyorsanız, sadece 'show' komutu atıyorsanız işareti KALDIRIN)")
+        chk_indiv = ctk.CTkCheckBox(top_frame, text=tr("Config Modunda Çalıştır") + warning_text, variable=self.indiv_config_chk_var)
         chk_indiv.pack(side="left", padx=20)
 
         self.indiv_cmd_box = ctk.CTkTextbox(self.main_frame, height=200)
@@ -417,12 +427,22 @@ class GNS3ManagerApp(ctk.CTk):
                 tkinter.messagebox.showwarning("Warning", "No devices registered.")
                 return
             
+            completed_count = 0
             def cb(success, msg, dev_name):
-                self.after(0, lambda: self.bkp_log_box.insert("end", f"[{dev_name}] {msg}\n"))
+                nonlocal completed_count
+                def update_log():
+                    nonlocal completed_count
+                    self.bkp_log_box.insert("end", f"[{dev_name}] {msg}\n")
+                    completed_count += 1
+                    if completed_count == len(devices):
+                        self.bkp_log_box.insert("end", f"\n[DONE] {tr('Tüm cihazlar yedeklendi')}\n")
+                    self.bkp_log_box.see("end")
+
+                self.after(0, update_log)
                 self.after(0, refresh_backup_files)
 
             self.bkp_log_box.delete("1.0", "end")
-            self.bkp_log_box.insert("end", tr("Tüm cihazlar için ağ yedeklemesi başlatılıyor...\n"))
+            self.bkp_log_box.insert("end", tr("Tüm cihazlar için ağ yedeklemesi başlatılıyor...") + "\n")
             for d in devices:
                 self.network.backup_config(d, backup_dir=backup_dir, callback=cb)
 
@@ -507,12 +527,15 @@ class GNS3ManagerApp(ctk.CTk):
         def pick_file(dropdown):
             filepath = filedialog.askopenfilename(title=tr("Karşılaştırılacak Yedeği Seçin"), filetypes=[("Tüm Dosyalar", "*.*"), ("Metin Dosyaları", "*.txt *.cfg")])
             if filepath:
+                if not hasattr(self, 'diff_paths'): self.diff_paths = {}
+                display_name = os.path.basename(filepath)
                 current_values = list(dropdown.cget("values"))
                 if tr("Yedek bulunamadı") in current_values: current_values.remove(tr("Yedek bulunamadı"))
-                if filepath not in current_values:
-                    current_values.append(filepath)
+                if display_name not in current_values:
+                    current_values.append(display_name)
                     dropdown.configure(values=current_values)
-                dropdown.set(filepath)
+                self.diff_paths[display_name] = filepath
+                dropdown.set(display_name)
 
         btn_pick_a = ctk.CTkButton(top_frame, text=tr("Gözat"), width=60, command=lambda: pick_file(self.diff_dd_a))
         btn_pick_a.grid(row=1, column=1, padx=5, pady=5)
@@ -530,12 +553,19 @@ class GNS3ManagerApp(ctk.CTk):
             if tr("Yedek bulunamadı") in file_a or tr("Yedek bulunamadı") in file_b:
                 return
             
-            path_a = file_a if os.path.isabs(file_a) else os.path.join(backup_dir, file_a)
-            path_b = file_b if os.path.isabs(file_b) else os.path.join(backup_dir, file_b)
+            file_a_full = self.diff_paths.get(file_a, file_a)
+            file_b_full = self.diff_paths.get(file_b, file_b)
+            
+            path_a = file_a_full if os.path.isabs(file_a_full) else os.path.join(backup_dir, file_a_full)
+            path_b = file_b_full if os.path.isabs(file_b_full) else os.path.join(backup_dir, file_b_full)
             
             if not os.path.exists(path_a) or not os.path.exists(path_b):
                 self.diff_box.delete("1.0", "end")
-                self.diff_box.insert("end", f"HATA: Seçilen dosyalardan biri veya ikisi bulunamadı!\nDosya A: {path_a} (Var mı: {os.path.exists(path_a)})\nDosya B: {path_b} (Var mı: {os.path.exists(path_b)})\nLütfen geçerli dosyalar seçin.")
+                err_msg = tr("HATA: Seçilen dosyalardan biri veya ikisi bulunamadı!")
+                info_a = f"\nDosya A: {path_a} ({tr('Var mı')}: {os.path.exists(path_a)})"
+                info_b = f"\nDosya B: {path_b} ({tr('Var mı')}: {os.path.exists(path_b)})"
+                prompt = f"\n{tr('Lütfen geçerli dosyalar seçin.')}"
+                self.diff_box.insert("end", err_msg + info_a + info_b + prompt)
                 return
                 
             with open(path_a, 'r') as f:
@@ -547,7 +577,7 @@ class GNS3ManagerApp(ctk.CTk):
             
             self.diff_box.delete("1.0", "end")
             if not diff:
-                self.diff_box.insert("end", "Dosyalar tamamen aynı veya fark bulunamadı.\n")
+                self.diff_box.insert("end", tr("Dosyalar tamamen aynı veya fark bulunamadı.") + "\n")
                 return
                 
             for line in diff:
@@ -634,7 +664,9 @@ class GNS3ManagerApp(ctk.CTk):
                 devices = [d for d in devices if d['name'] == source_device]
 
             self.ping_log_box.delete("1.0", "end")
-            self.ping_log_box.insert("end", f"{source_device} kaynağından {', '.join(target_ips)} hedeflerine tarama başlatılıyor...\n\n")
+            msg_prefix = f"{source_device} {tr('kaynağından')}"
+            msg_suffix = f"{', '.join(target_ips)} {tr('hedeflerine tarama başlatılıyor...')}"
+            self.ping_log_box.insert("end", f"{msg_prefix} {msg_suffix}\n\n")
 
             def cb(dev_name, status, output, ip):
                 if status == "SUCCESS": display_status = tr("BAŞARILI")
@@ -679,7 +711,7 @@ class GNS3ManagerApp(ctk.CTk):
         header = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         header.grid(row=0, column=0, pady=(20, 10), padx=20, sticky="w")
         ctk.CTkLabel(header, text=tr("Live Topology Map"), font=ctk.CTkFont(size=24, weight="bold")).pack(anchor="w")
-        ctk.CTkLabel(header, text=tr("Cihazların çalışma durumlarını canlı izleyin. (Kablolar çalışması için CDP aktif olmalıdır)"), text_color="gray").pack(anchor="w", pady=(5,0))
+        ctk.CTkLabel(header, text=tr("Cihazların çalışma durumlarını canlı izleyin. GNS3 yerleşimi otomatik senkronize edilir, cihazları sürükleyerek GNS3'teki konumlarını güncelleyebilirsiniz."), text_color="gray").pack(anchor="w", pady=(5,0))
 
         top_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         top_frame.grid(row=1, column=0, padx=20, pady=5, sticky="ew")
@@ -716,8 +748,20 @@ class GNS3ManagerApp(ctk.CTk):
         x_scroll.configure(command=self.canvas.xview)
         y_scroll.configure(command=self.canvas.yview)
 
-        self.canvas.bind("<ButtonPress-1>", lambda event: self.canvas.scan_mark(event.x, event.y))
-        self.canvas.bind("<B1-Motion>", lambda event: self.canvas.scan_dragto(event.x, event.y, gain=1))
+        def on_canvas_press(event):
+            # 'current' tag tells us if an item is under the mouse
+            if not self.canvas.find_withtag("current"):
+                self.canvas.scan_mark(event.x, event.y)
+                self.is_panning = True
+            else:
+                self.is_panning = False
+
+        def on_canvas_drag(event):
+            if getattr(self, "is_panning", False):
+                self.canvas.scan_dragto(event.x, event.y, gain=1)
+
+        self.canvas.bind("<ButtonPress-1>", on_canvas_press)
+        self.canvas.bind("<B1-Motion>", on_canvas_drag)
 
         def on_resize(event=None):
             cw = self.canvas.winfo_width()
@@ -757,81 +801,182 @@ class GNS3ManagerApp(ctk.CTk):
                 self.canvas.create_text(cx, cy, text=tr("Kayıtlı cihaz yok."), fill="white", font=("Arial", 16))
                 return
 
-            num_nodes = len(devices)
-            
-            self.update_idletasks()
-            cw = self.canvas.winfo_width()
-            ch = self.canvas.winfo_height()
-            if cw <= 1: cw = 840
-            if ch <= 1: ch = 480
-            
-            center_x = self.canvas.canvasx(cw / 2)
-            center_y = self.canvas.canvasy(ch / 2)
-            
-            max_r = min(cw, ch) / 2 - 80
-            if max_r < 120: max_r = 120
-            radius = min(max_r, max(120, num_nodes * 40))
-
-            coord_map = {}
-
-            for i, d in enumerate(devices):
-                angle = i * (2 * math.pi / num_nodes) - (math.pi / 2) # start from top
-                x = center_x + radius * math.cos(angle)
-                y = center_y + radius * math.sin(angle)
-                coord_map[d['name']] = (x, y)
-
-                # Draw initial gray circle
-                self.canvas.create_oval(x-25, y-25, x+25, y+25, fill="gray", outline="white", width=2, tags="node")
-                self.canvas.create_text(x, y+40, text=d['name'], fill="white", font=("Arial", 11, "bold"), tags="node_text")
-
-                def check_status(idx=i, dev=d, cx=x, cy=y):
-                    is_up = check_node_up(dev['ip'], dev['port'])
-                    color = "#00FF00" if is_up else "#FF4444"
-                    
-                    self.after(0, lambda cx1=cx, cy1=cy, col=color: self.canvas.create_oval(cx1-25, cy1-25, cx1+25, cy1+25, fill=col, outline="white", width=2, tags="node"))
+            def on_data_received(data):
+                edges = data.get('edges', [])
+                positions = data.get('positions', {})
                 
-                threading.Thread(target=check_status, daemon=True).start()
+                self.after(0, lambda: draw_topology(edges, positions))
 
-            def draw_edges(edges):
-                def update_canvas():
-                    for edge in edges:
-                        if len(edge) == 4:
-                            n1, n2, i1, i2 = edge
-                        else: continue # Skip old cached format if any
-                            
-                        if n1 in coord_map and n2 in coord_map:
+            def draw_topology(edges, positions):
+                self.canvas.delete("all")
+                
+                # Calculate bounds for scaling
+                if positions:
+                    # positions items are (x, y, project_id, node_id)
+                    all_x = [p[0] for p in positions.values()]
+                    all_y = [p[1] for p in positions.values()]
+                    min_x, max_x = min(all_x), max(all_x)
+                    min_y, max_y = min(all_y), max(all_y)
+                else:
+                    min_x, max_x, min_y, max_y = 0, 800, 0, 600
+
+                # Determine scale and offset to fit canvas
+                self.update_idletasks()
+                cw = self.canvas.winfo_width()
+                ch = self.canvas.winfo_height()
+                if cw <= 1: cw = 1100
+                if ch <= 1: ch = 700
+
+                padding = 100
+                width = max_x - min_x if max_x != min_x else 800
+                height = max_y - min_y if max_y != min_y else 600
+                
+                scale_x = (cw - 2 * padding) / width if width > 0 else 1.0
+                scale_y = (ch - 2 * padding) / height if height > 0 else 1.0
+                scale = min(scale_x, scale_y, 1.0) # Don't scale up too much if small
+                
+                # Center the topology
+                offset_x = (cw - width * scale) / 2 - min_x * scale
+                offset_y = (ch - height * scale) / 2 - min_y * scale
+
+                # Metadata for dragging
+                coord_map = {}
+                node_items = {} # {name: {circle_id, text_id, metadata}}
+                line_items = [] # list of (line_id, n1, n2, i1_id, i2_id)
+
+                def update_node_visuals(name, new_x, new_y):
+                    # Move circle and text
+                    if name not in node_items: return
+                    items = node_items[name]
+                    self.canvas.coords(items['circle_id'], new_x-25, new_y-25, new_x+25, new_y+25)
+                    self.canvas.coords(items['text_id'], new_x, new_y+40)
+                    coord_map[name] = (new_x, new_y)
+                    
+                    # Update connected lines
+                    for line_data in line_items:
+                        lid, n1, n2, i1id, i2id = line_data
+                        if n1 == name or n2 == name:
                             x1, y1 = coord_map[n1]
                             x2, y2 = coord_map[n2]
+                            self.canvas.coords(lid, x1, y1, x2, y2)
                             
-                            self.canvas.create_line(x1, y1, x2, y2, fill="cyan", width=2, tags="edge")
-                            
-                            # Calculate label positions closer to the nodes (25% and 75% along the line)
+                            # Update label positions
                             mx1 = x1 + (x2 - x1) * 0.25
                             my1 = y1 + (y2 - y1) * 0.25
                             mx2 = x1 + (x2 - x1) * 0.75
                             my2 = y1 + (y2 - y1) * 0.75
+                            self.canvas.coords(i1id, mx1, my1 - 12)
+                            self.canvas.coords(i2id, mx2, my2 - 12)
 
-                            self.canvas.create_text(mx1, my1 - 12, text=i1, fill="yellow", font=("Arial", 11, "bold"), tags="edge")
-                            self.canvas.create_text(mx2, my2 - 12, text=i2, fill="yellow", font=("Arial", 11, "bold"), tags="edge")
+                # Drag-and-drop state
+                drag_data = {"x": 0, "y": 0, "name": None}
 
-                    self.canvas.tag_lower("edge")
+                def on_node_press(event, name):
+                    drag_data["name"] = name
+                    drag_data["x"] = event.x
+                    drag_data["y"] = event.y
+
+                def on_node_drag(event):
+                    if not drag_data["name"]: return
+                    dx = event.x - drag_data["x"]
+                    dy = event.y - drag_data["y"]
+                    
+                    # Current canvas coordinates
+                    old_x, old_y = coord_map[drag_data["name"]]
+                    new_x, new_y = old_x + dx, old_y + dy
+                    
+                    update_node_visuals(drag_data["name"], new_x, new_y)
+                    
+                    drag_data["x"] = event.x
+                    drag_data["y"] = event.y
+                    self.canvas.tag_raise("node")
+                    self.canvas.tag_raise("node_text")
+
+                def on_node_release(event):
+                    name = drag_data["name"]
+                    if not name: return
+                    
+                    # Final sync to GNS3
+                    meta = node_items[name].get('metadata')
+                    if meta:
+                        project_id, node_id = meta
+                        nx, ny = coord_map[name]
+                        # Reverse scale/offset to get original GNS3 coordinates
+                        gx = (nx - offset_x) / scale
+                        gy = (ny - offset_y) / scale
+                        self.network.update_node_position(project_id, node_id, gx, gy)
+                    
+                    drag_data["name"] = None
                     self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-                    # Auto-save topology snapshot for Lab Report
-                    def save_snapshot():
-                        try:
-                            from database import BASE_DIR
-                            snap_dir = os.path.join(BASE_DIR, "reports")
-                            os.makedirs(snap_dir, exist_ok=True)
-                            snap_path = os.path.join(snap_dir, "topology_snapshot.png")
-                            capture_canvas_to_png(self.canvas, snap_path)
-                        except Exception:
-                            pass
-                    self.after(500, save_snapshot)
+                # Create nodes
+                for i, d in enumerate(devices):
+                    name = d['name']
+                    metadata = None
+                    if name in positions:
+                        pos_data = positions[name]
+                        gx, gy = pos_data[0], pos_data[1]
+                        project_id, node_id = pos_data[2], pos_data[3]
+                        x = gx * scale + offset_x
+                        y = gy * scale + offset_y
+                        metadata = (project_id, node_id)
+                    else:
+                        angle = i * (2 * math.pi / len(devices)) - (math.pi / 2)
+                        radius = min(cw, ch) / 3
+                        x = cw/2 + radius * math.cos(angle)
+                        y = ch/2 + radius * math.sin(angle)
+                    
+                    coord_map[name] = (x, y)
+                    cid = self.canvas.create_oval(x-25, y-25, x+25, y+25, fill="gray", outline="white", width=2, tags=("node", name))
+                    tid = self.canvas.create_text(x, y+40, text=name, fill="white", font=("Arial", 11, "bold"), tags=("node_text", name))
+                    
+                    node_items[name] = {'circle_id': cid, 'text_id': tid, 'metadata': metadata}
 
-                self.after(0, update_canvas)
+                    # Bind events
+                    self.canvas.tag_bind(cid, "<ButtonPress-1>", lambda e, n=name: on_node_press(e, n))
+                    self.canvas.tag_bind(tid, "<ButtonPress-1>", lambda e, n=name: on_node_press(e, n))
 
-            self.network.get_topology_edges(devices, callback=draw_edges)
+                    def check_status(dev=d, nid=cid):
+                        is_up = check_node_up(dev['ip'], dev['port'])
+                        color = "#00FF00" if is_up else "#FF4444"
+                        self.after(0, lambda: self.canvas.itemconfig(nid, fill=color))
+                    threading.Thread(target=check_status, daemon=True).start()
+
+                self.canvas.bind("<B1-Motion>", on_node_drag, add="+")
+                self.canvas.bind("<ButtonRelease-1>", on_node_release, add="+")
+
+                # Create lines
+                for edge in edges:
+                    if len(edge) == 4:
+                        n1, n2, i1, i2 = edge
+                        if n1 in coord_map and n2 in coord_map:
+                            x1, y1 = coord_map[n1]
+                            x2, y2 = coord_map[n2]
+                            lid = self.canvas.create_line(x1, y1, x2, y2, fill="cyan", width=2, tags="edge")
+                            
+                            mx1, my1 = x1 + (x2 - x1) * 0.25, y1 + (y2 - y1) * 0.25
+                            mx2, my2 = x1 + (x2 - x1) * 0.75, y1 + (y2 - y1) * 0.75
+                            i1id = self.canvas.create_text(mx1, my1 - 12, text=i1, fill="yellow", font=("Arial", 11, "bold"), tags="edge")
+                            i2id = self.canvas.create_text(mx2, my2 - 12, text=i2, fill="yellow", font=("Arial", 11, "bold"), tags="edge")
+                            
+                            line_items.append((lid, n1, n2, i1id, i2id))
+
+                self.canvas.tag_lower("edge")
+                self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+                # Auto-save topology snapshot for Lab Report
+                def save_snapshot():
+                    try:
+                        from database import BASE_DIR
+                        snap_dir = os.path.join(BASE_DIR, "reports")
+                        os.makedirs(snap_dir, exist_ok=True)
+                        snap_path = os.path.join(snap_dir, "topology_snapshot.png")
+                        capture_canvas_to_png(self.canvas, snap_path)
+                    except Exception:
+                        pass
+                self.after(500, save_snapshot)
+
+            self.network.get_topology_data(devices, callback=on_data_received)
 
         self.after(100, refresh_map)
 
@@ -1057,25 +1202,25 @@ ip route {{{{TARGET_NETWORK}}}} {{{{TARGET_MASK}}}} {{{{NEXT_HOP_IP}}}}
                 if os.path.abspath(default_snap) != os.path.abspath(dest_snap):
                     import shutil
                     shutil.copy2(default_snap, dest_snap)
-                self.report_log_box.insert("end", f"⏳ {tr('Topoloji görseli kaydedildi.')}\n")
+                self.report_log_box.insert("end", f"[*] {tr('Topoloji görseli kaydedildi.')}\n")
             else:
-                self.report_log_box.insert("end", f"⏳ {tr('Topoloji görseli yakalanamadı (önce Canlı Harita sekmesini açın).')}\n")
+                self.report_log_box.insert("end", f"[!] {tr('Topoloji görseli yakalanamadı (önce Canlı Harita sekmesini açın).')}\n")
 
             def progress_cb(stage, message):
                 def update_ui():
                     if stage == "progress":
-                        self.report_log_box.insert("end", f"⏳ {message}\n")
+                        self.report_log_box.insert("end", f"[*] {message}\n")
                     elif stage == "done":
-                        self.report_log_box.insert("end", f"\n🎉 {message}\n")
+                        self.report_log_box.insert("end", f"\n[DONE] {message}\n")
                         btn_generate.configure(state="normal", text=tr("Raporu Oluştur"))
-                        btn_open_folder.configure(state="normal")
                     elif stage == "error":
-                        self.report_log_box.insert("end", f"\n❌ {message}\n")
+                        self.report_log_box.insert("end", f"\n[ERROR] {message}\n")
                         btn_generate.configure(state="normal", text=tr("Raporu Oluştur"))
                     self.report_log_box.see("end")
                 self.after(0, update_ui)
 
             generate_report_async(
+                network_core=self.network, # Pass the persistent network instance
                 canvas_capture_func=None,
                 report_dir=report_dir,
                 report_format=self.report_format_var.get(),
@@ -1093,7 +1238,7 @@ ip route {{{{TARGET_NETWORK}}}} {{{{TARGET_MASK}}}} {{{{NEXT_HOP_IP}}}}
             os.makedirs(report_dir, exist_ok=True)
             os.startfile(report_dir)
 
-        btn_open_folder = ctk.CTkButton(btn_frame, text=tr("Rapor Klasörünü Aç"), fg_color="gray", hover_color="darkgray", command=open_report_folder, state="disabled")
+        btn_open_folder = ctk.CTkButton(btn_frame, text=tr("Rapor Klasörünü Aç"), fg_color="gray", hover_color="darkgray", command=open_report_folder)
         btn_open_folder.pack(side="left")
         add_tooltip(btn_open_folder, tr("Raporların kaydedildiği klasörü Windows gezgininde açar."))
 
