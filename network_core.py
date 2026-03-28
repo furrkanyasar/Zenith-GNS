@@ -30,43 +30,46 @@ class NetworkCore:
             'password': device.get('password', ''),
             'port': int(device.get('port', 23)),
             'secret': device.get('password', ''), # Normally enable secret
-            'global_delay_factor': 4, # Increased for GNS3 virtual routers
-            'timeout': 60, # Increased connection timeout
-            'fast_cli': False, 
+            'global_delay_factor': 2, # Optimized for GNS3 virtual routers
+            'timeout': 15, # Faster connection failure detection
+            'fast_cli': True, 
             'global_cmd_verify': False 
         }
 
     def _get_session(self, device, force_reconnect=False):
         """Returns an active Netmiko session for the device, creating it if necessary."""
         name = device['name']
+        
+        # 1. Thread-safe check for existing session
         with self.lock:
-            # Check if session exists and is alive
             if not force_reconnect and name in self.sessions:
                 conn = self.sessions[name]
                 try:
-                    # Simple keep-alive/check
                     if conn.is_alive():
                         return conn
                 except Exception:
                     pass
-                # If we reach here, connection is dead
                 try: conn.disconnect()
                 except: pass
                 del self.sessions[name]
 
-            # Establish new session
+        # 2. Establish new session (OUTSIDE the lock for parallel handshaking)
+        try:
+            wake_up_console(device['ip'], int(device['port']))
+            conn_dict = self._get_connection_dict(device)
+            net_connect = ConnectHandler(**conn_dict)
             try:
-                wake_up_console(device['ip'], int(device['port']))
-                conn_dict = self._get_connection_dict(device)
-                net_connect = ConnectHandler(**conn_dict)
-                try:
-                    net_connect.enable()
-                except:
-                    pass
+                net_connect.enable()
+            except:
+                pass
+            
+            # 3. Thread-safe update to sessions dictionary
+            with self.lock:
+                # If another thread established a session while we were connecting, use ours (overwrite)
                 self.sessions[name] = net_connect
-                return net_connect
-            except Exception as e:
-                raise Exception(f"Failed to connect to {name}: {str(e)}")
+            return net_connect
+        except Exception as e:
+            raise Exception(f"Failed to connect to {name}: {str(e)}")
 
     def disconnect_all(self):
         """Closes all active sessions."""
