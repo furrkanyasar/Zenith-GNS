@@ -5,6 +5,13 @@
 *Zenith GNS is a modern Python desktop application developed to centrally manage, configure and visualize Cisco network devices in the GNS3 environment.*
 
 ---
+<img width="1911" height="1004" alt="Ekran görüntüsü 2026-03-28 221221 - Kopya" src="https://github.com/user-attachments/assets/5e4efbbd-45ef-4ed6-b9d8-89f1c5721174" />
+<img width="1913" height="1014" alt="Ekran görüntüsü 2026-03-28 220940 - Kopya" src="https://github.com/user-attachments/assets/5168a524-619e-47d9-a038-fdf5492ff3a2" />
+<img width="1913" height="1001" alt="Ekran görüntüsü 2026-03-28 221301 - Kopya" src="https://github.com/user-attachments/assets/03c68920-26ad-465f-b958-cefc35ff1be7" />
+<img width="1916" height="1015" alt="Ekran görüntüsü 2026-03-28 221719 - Kopya" src="https://github.com/user-attachments/assets/f697464e-1aa7-4c04-8f93-00c70a99f7f1" />
+
+
+
 
 ## 🛠️ Kurulum / Installation
 
@@ -97,9 +104,11 @@ Ağdaki cihazların birbirine veya dış dünyaya erişip erişemediğini toplu 
 
 ### 7. Canlı Harita (Live Topology Map)
 GNS3 topolojinizi interaktif bir görsel şölene dönüştürür.
-- **Interaktif Tuval:** Cihazlarınızı sürükleyebilir, yaklaşıp uzaklaşarak büyük ağlarda rahatça gezinebilirsiniz.
-- **Kablo ve Arayüz Bilgisi:** Her bağlantının (kablo) üzerinde hangi arayüzlerin (Örn: GigabitEthernet0/1 to FastEthernet0/0) bağlı olduğu dinamik olarak etiketlenir.
-- **Canlı Durum Işıkları:** Cihazların yanındaki ışıklar anlık erişilebilirlik durumunu (Yeşil/Kırmızı) gösterir.
+- **Çift Yönlü Senkronizasyon (Sürükle-Bırak):** Cihazları harita üzerinde serbestçe sürükleyebilirsiniz. Yaptığınız konum değişiklikleri anlık olarak GNS3 sunucusuna iletilir ve GNS3 masaüstü istemcisiyle (backend) tam senkronize çalışır.
+- **Gerçek Zamanlı Topoloji:** Cihazlar tıpkı GNS3 projenizdeki koordinatlarında görünür. Tüm kablolama ve bağlantı yapısı GNS3 ile birebir aynı şekilde dinamik olarak çizilir.
+- **Akıllı Bağlantı Etiketleri:** Her kablonun (link) üzerinde hangi arayüzlerin (Örn: Gig0/1 -> Fa0/0) birbirine bağlı olduğu otomatik ve dinamik olarak etiketlenir.
+- **Canlı Durum Göstergeleri:** Cihaz ikonlarının yanındaki durum ışıklarıyla (Yeşil: Çalışıyor, Kırmızı: Kapalı/Ulaşılamaz) ağın anlık erişilebilirlik durumunu canlı izleyebilirsiniz.
+- **Zengin Navigasyon:** Mouse tekerleği ile yakınlaştırıp uzaklaşabilir (Zoom), boş alanları tutup sürükleyerek büyük ağlarda haritayı kaydırabilirsiniz.
 
 ### 8. Şablonlar (Templates)
 Ağ cihazlarınıza standart konfigürasyonları (Örn: IP v6 etkinleştirme, yeni bir kullanıcı tanımlama veya SNMP ayarları) hızlıca ve hatasız bir şekilde basmanızı sağlayan en gelişmiş araçtır.
@@ -160,9 +169,11 @@ Bulk ICMP testing to audit reachability across your internal or external network
 
 ### 7. Live Topology Map
 Transforms your static GNS3 setup into a dynamic, interactive visual command center.
-- **Interactive Map Canvas:** Freely drag devices, pan across the canvas, and use the Zoom In/Out features to navigate through complex, large-scale topologies.
-- **Intelligent Link Labels:** Physical cables are automatically labeled with their specific source and destination interface names (e.g., Gi0/1 on RouterA to Fa0/0 on RouterB).
-- **Node Status Indicators:** Dynamic color-coded rings around icons reflect the real-time connectivity state (Green for Active/Up, Red for Offline/Down).
+- **Bidirectional Synchronization (Drag-and-Drop):** Drag devices directly on the map to reposition them. Changes are instantly pushed to the GNS3 server, ensuring full synchronization with your GNS3 desktop project.
+- **Real-Time Topology Representation:** Routers and switches are placed exactly as they appear in your GNS3 project, with the entire physical cabling structure dynamically visualized.
+- **Smart Connection Labels:** Active interface pairs for every connection (e.g., Gig0/1 -> Fa0/0) are automatically and dynamically labeled on the link segments.
+Live Status Indicators: Monitor network health in real-time via status lights next to device icons (Green: Running, Red: Stopped/Unreachable).
+- **Rich Navigation:** Seamlessly navigate large topologies using mouse wheel zoom and smooth canvas panning by dragging empty areas.
 
 ### 8. Templates
 High-speed deployment of complex, standardized configurations using logic and variables.
