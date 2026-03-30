@@ -928,10 +928,17 @@ class GNS3ManagerApp(ctk.CTk):
                     drag_data["name"] = None
                     self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
+                # Map names to device objects for status checks
+                managed_devs = {d['name']: d for d in devices}
+                
+                # Determine nodes to draw: all from GNS3 positions + any local ones not in GNS3
+                all_node_names = list(set(positions.keys()) | set(managed_devs.keys()))
+                
                 # Create nodes
-                for i, d in enumerate(devices):
-                    name = d['name']
+                for i, name in enumerate(all_node_names):
                     metadata = None
+                    is_managed = name in managed_devs
+                    
                     if name in positions:
                         pos_data = positions[name]
                         gx, gy = pos_data[0], pos_data[1]
@@ -940,26 +947,35 @@ class GNS3ManagerApp(ctk.CTk):
                         y = gy * scale + offset_y
                         metadata = (project_id, node_id)
                     else:
-                        angle = i * (2 * math.pi / len(devices)) - (math.pi / 2)
+                        # Fallback for devices in inventory but not in current GNS3 project
+                        angle = i * (2 * math.pi / len(all_node_names)) - (math.pi / 2)
                         radius = min(cw, ch) / 3
                         x = cw/2 + radius * math.cos(angle)
                         y = ch/2 + radius * math.sin(angle)
                     
                     coord_map[name] = (x, y)
-                    cid = self.canvas.create_oval(x-25, y-25, x+25, y+25, fill="gray", outline="white", width=2, tags=("node", name))
-                    tid = self.canvas.create_text(x, y+40, text=name, fill="white", font=("Arial", 11, "bold"), tags=("node_text", name))
                     
+                    # Style: Circle for managed, Square for unmanaged/unknown
+                    if is_managed:
+                        cid = self.canvas.create_oval(x-25, y-25, x+25, y+25, fill="gray", outline="white", width=2, tags=("node", name))
+                    else:
+                        # Draw a square for unmanaged switches/nodes
+                        cid = self.canvas.create_rectangle(x-25, y-25, x+25, y+25, fill="#4a4a4a", outline="#aaaaaa", width=2, tags=("node", name))
+                    
+                    tid = self.canvas.create_text(x, y+40, text=name, fill="white", font=("Arial", 11, "bold"), tags=("node_text", name))
                     node_items[name] = {'circle_id': cid, 'text_id': tid, 'metadata': metadata}
 
                     # Bind events
                     self.canvas.tag_bind(cid, "<ButtonPress-1>", lambda e, n=name: on_node_press(e, n))
                     self.canvas.tag_bind(tid, "<ButtonPress-1>", lambda e, n=name: on_node_press(e, n))
 
-                    def check_status(dev=d, nid=cid):
-                        is_up = check_node_up(dev['ip'], dev['port'])
-                        color = "#00FF00" if is_up else "#FF4444"
-                        self.after(0, lambda: self.canvas.itemconfig(nid, fill=color))
-                    threading.Thread(target=check_status, daemon=True).start()
+                    # Status check only for managed devices
+                    if is_managed:
+                        def check_status(dev=managed_devs[name], nid=cid):
+                            is_up = check_node_up(dev['ip'], dev['port'])
+                            color = "#00FF00" if is_up else "#FF4444"
+                            self.after(0, lambda: self.canvas.itemconfig(nid, fill=color))
+                        threading.Thread(target=check_status, daemon=True).start()
 
                 self.canvas.bind("<B1-Motion>", on_node_drag, add="+")
                 self.canvas.bind("<ButtonRelease-1>", on_node_release, add="+")
