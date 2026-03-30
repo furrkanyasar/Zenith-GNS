@@ -1,29 +1,22 @@
-# Python & IDE
+# PyInstaller (EXE)
+dist/
+build/
+*.spec
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 venv/
-.env
+.venv/
+env/
+.env/
+
+# IDEs
 .vscode/
 .idea/
 
-# Database & Personal Settings (Kritik: Kendi cihaz kayıtlarını paylaşma)
+# Local data (if exists)
 database.json
 settings.json
-*.log
-backups/
-
-# Build & Dist
-build/
-dist/
-*.spec
-reports/
-
-# One-off helper scripts (not part of the app)
-convert_icon.py
-fix_translations.py
-patch_main.py
-
-# OS
-.DS_Store
-Thumbs.db
+gns3_server.ini

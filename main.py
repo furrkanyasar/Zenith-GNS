@@ -1,12 +1,23 @@
 import customtkinter as ctk
 import tkinter.messagebox
 import tkinter as tk
+from PIL import Image, ImageTk
 from database import load_devices, add_device, delete_device, load_settings, save_settings
 from network_core import NetworkCore
 from translations import tr
 from report_generator import generate_report_async, capture_canvas_to_png
 import webbrowser
 import os
+import sys
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -52,9 +63,17 @@ def add_tooltip(widget, text):
 class GNS3ManagerApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-
+        
         self.title("Zenith GNS")
-        self.geometry("1100x650")
+        self.geometry("1100x700")
+        
+        # Set App Icon
+        try:
+            ico_path = resource_path("app_icon.ico")
+            if os.path.exists(ico_path):
+                self.iconbitmap(ico_path)
+        except Exception:
+            pass
 
         self.network = NetworkCore() # Changed from NetworkCore to NetworkConnector
         self.tooltip_window = None
@@ -1250,14 +1269,76 @@ ip route {{{{TARGET_NETWORK}}}} {{{{TARGET_MASK}}}} {{{{NEXT_HOP_IP}}}}
         self.report_log_box.insert("end", tr("Rapor oluşturmak için yukarıdaki seçenekleri belirleyip 'Raporu Oluştur' butonuna basın.") + "\n")
         self.report_log_box.insert("end", f"\n💡 {tr('İpucu: Rapora topoloji görseli eklemek için önce Canlı Harita sekmesini ziyaret edin.')}\n")
 
+class SplashScreen(ctk.CTkToplevel):
+    def __init__(self, main_app):
+        super().__init__()
+        self.main_app = main_app
+        self.attributes("-topmost", True)
+        self.overrideredirect(True)
+        # Windows-specific transparency trick
+        self.bg_transparent = "#010101"
+        self.attributes("-transparentcolor", self.bg_transparent)
+        self.configure(fg_color=self.bg_transparent) 
+
+        # Splash Window Dimensions (Reduced by ~25%)
+        width, height = 338, 455
+        self.update_idletasks()
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Image Label
+        try:
+            img_path = resource_path(os.path.join("assets", "splash_transparent.png"))
+            if os.path.exists(img_path):
+                img = Image.open(img_path)
+                # Use CTkImage with transparency support (338x437 for ~25% reduction)
+                self.splash_img = ctk.CTkImage(light_image=img, dark_image=img, size=(338, 437))
+                lbl = ctk.CTkLabel(self, image=self.splash_img, text="", bg_color=self.bg_transparent)
+                lbl.pack(pady=0)
+        except Exception as e:
+            print(f"Splash image error: {e}")
+            ctk.CTkLabel(self, text="Zenith GNS", font=("Arial", 28, "bold")).pack(pady=100)
+        
+        # Simulated Progress Bar (Ensuring it's attached directly to the logo)
+        self.progress = ctk.CTkProgressBar(self, width=338, height=6, progress_color="cyan", 
+                                           corner_radius=0, bg_color=self.bg_transparent)
+        self.progress.set(0)
+        self.progress.pack(pady=0)
+        
+        self.progress_val = 0
+        self.update_progress()
+
+    def update_progress(self):
+        if self.progress_val < 1.0:
+            self.progress_val += 0.05
+            self.progress.set(self.progress_val)
+            self.after(125, self.update_progress) # Update to 2.5 seconds (125ms * 20 = 2500ms)
+        else:
+            self.after(200, self.close_splash)
+
+    def close_splash(self):
+        self.main_app.deiconify() # Show main app
+        self.destroy()
+
 if __name__ == "__main__":
     try:
         import ctypes
-        # Update ID to the new app name 'Zenith GNS'
         myappid = 'zenith.gns.app.version.1'
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except Exception:
         pass
 
+    # CTK Setup
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+
+    # The main app is initialized but hidden
     app = GNS3ManagerApp()
+    app.withdraw() # Hide it immediately
+
+    # Show Splash Screen first
+    splash = SplashScreen(main_app=app)
     app.mainloop()

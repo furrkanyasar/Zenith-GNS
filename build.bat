@@ -45,7 +45,7 @@ call venv\Scripts\pip.exe install pyinstaller
 
 echo.
 echo Zenith GNS insa ediliyor (EXE yapiliyor)...
-call venv\Scripts\pyinstaller.exe --noconfirm --onefile --windowed --icon "app_icon.ico" --name "Zenith GNS" --add-data "venv/Lib/site-packages/customtkinter;customtkinter/" --add-data "app_icon.ico;." main.py
+call venv\Scripts\pyinstaller.exe --noconfirm --onefile --windowed --icon "app_icon.ico" --name "Zenith GNS" --add-data "venv/Lib/site-packages/customtkinter;customtkinter/" --add-data "app_icon.ico;." --add-data "assets;assets" main.py
 
 if %errorlevel% neq 0 (
     echo.
