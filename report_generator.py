@@ -1,6 +1,12 @@
 """
-Zenith GNS - Lab Report Generator Module
+Zenith GNS — Lab Report Generator Module
+
 Generates professional Markdown and PDF lab reports from GNS3 topology data.
+Report contents: topology map, device inventory, link matrix,
+interface statuses, routing configuration, and uptime info.
+
+Performance: Device status checks and config retrieval run in parallel
+via ThreadPoolExecutor.
 """
 
 import os
@@ -8,12 +14,21 @@ import threading
 import socket
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from database import load_devices, load_settings, BASE_DIR
 from translations import tr
 
 
+# ---------------------------------------------------------------------------
+# Helper Functions
+# ---------------------------------------------------------------------------
 def capture_canvas_to_png(canvas, filepath):
-    """Captures the Tkinter Canvas content to a PNG file using Pillow."""
+    """
+    Captures the Tkinter Canvas content as a PNG screenshot.
+    Uses Pillow's ImageGrab module.
+
+    Note: Only captures the visible canvas area on screen.
+    """
     try:
         canvas.update_idletasks()
         x = canvas.winfo_rootx()
@@ -31,7 +46,7 @@ def capture_canvas_to_png(canvas, filepath):
 
 
 def check_device_status(ip, port):
-    """Checks if a device is reachable via TCP."""
+    """Checks device reachability by attempting a TCP connection."""
     try:
         s = socket.create_connection((ip, int(port)), timeout=2)
         s.close()
@@ -41,7 +56,13 @@ def check_device_status(ip, port):
 
 
 def get_config_snippet(network_core, device, commands=None):
-    """Fetches configuration snippets from a device via pooled NetworkCore sessions."""
+    """
+    Retrieves configuration snippets from a device.
+    network_core: Shared NetworkCore instance (for session pooling)
+
+    Default commands: show ip route, show run | section router,
+    show ip interface brief, show version
+    """
     if commands is None:
         commands = [
             "show ip route",
@@ -52,6 +73,7 @@ def get_config_snippet(network_core, device, commands=None):
 
     try:
         net_connect = network_core._get_session(device)
+
         results = {}
         def run_cmds(conn):
             for cmd in commands:
@@ -60,68 +82,44 @@ def get_config_snippet(network_core, device, commands=None):
                 except Exception as e:
                     results[cmd] = f"Error: {str(e)}"
 
+        # First attempt; reconnect on failure
         try:
             run_cmds(net_connect)
         except Exception:
-            # Retry with fresh session
             net_connect = network_core._get_session(device, force_reconnect=True)
             run_cmds(net_connect)
-            
+
         return results
     except Exception as e:
         return {cmd: f"Connection Error: {str(e)}" for cmd in commands}
 
 
-def get_topology_links_sync():
-    """Synchronously fetches topology edges from GNS3 API."""
+def get_topology_links_sync(network_core=None):
+    """
+    Fetches topology links from the GNS3 API synchronously.
+    Uses NetworkCore's _get_gns3_api_config() helper to
+    avoid code duplication.
+
+    Args:
+        network_core: Existing NetworkCore instance. Creates a new one if None.
+
+    Returns:
+        tuple: (edges_list, project_name)
+    """
     try:
         import urllib.request
         import json
-        import base64
-        import configparser
 
-        api_user = ""
-        api_pass = ""
-        api_server = "http://localhost:3080"
-
-        gns3_appdata = os.path.join(os.environ.get('APPDATA', ''), 'GNS3')
-        gns3_ini = None
-
-        if os.path.exists(gns3_appdata):
-            try:
-                folders = [f for f in os.listdir(gns3_appdata)
-                           if os.path.isdir(os.path.join(gns3_appdata, f)) and f.replace('.', '').isdigit()]
-                if folders:
-                    latest_folder = sorted(folders, key=lambda x: [int(p) for p in x.split('.')])[-1]
-                    potential_ini = os.path.join(gns3_appdata, latest_folder, 'gns3_server.ini')
-                    if os.path.exists(potential_ini):
-                        gns3_ini = potential_ini
-            except Exception:
-                pass
-
-        if gns3_ini and os.path.exists(gns3_ini):
-            try:
-                config = configparser.ConfigParser()
-                config.read(gns3_ini, encoding='utf-8')
-                if config.has_section('Server'):
-                    if config.getboolean('Server', 'auth', fallback=False):
-                        api_user = config.get('Server', 'user', fallback='')
-                        api_pass = config.get('Server', 'password', fallback='')
-                    ini_host = config.get('Server', 'host', fallback='localhost')
-                    ini_port = config.get('Server', 'port', fallback='3080')
-                    ini_protocol = config.get('Server', 'protocol', fallback='http')
-                    api_server = f"{ini_protocol}://{ini_host}:{ini_port}"
-            except Exception:
-                pass
-
-        headers = {}
-        if api_user or api_pass:
-            credentials = base64.b64encode(f"{api_user}:{api_pass}".encode()).decode()
-            headers['Authorization'] = f'Basic {credentials}'
+        # Use existing instance or create a new one
+        if network_core is None:
+            from network_core import NetworkCore
+            network_core = NetworkCore()
+        api_server, headers = network_core._get_gns3_api_config()
 
         edges = []
         project_name = "Unknown Project"
 
+        # Fetch projects
         req = urllib.request.Request(f"{api_server}/v2/projects", headers=headers)
         with urllib.request.urlopen(req, timeout=5) as response:
             projects = json.loads(response.read().decode())
@@ -134,12 +132,18 @@ def get_topology_links_sync():
             project_id = project['project_id']
             project_name = project.get('name', 'Unknown Project')
 
-            req = urllib.request.Request(f"{api_server}/v2/projects/{project_id}/nodes", headers=headers)
+            # Fetch nodes
+            req = urllib.request.Request(
+                f"{api_server}/v2/projects/{project_id}/nodes", headers=headers
+            )
             with urllib.request.urlopen(req, timeout=5) as response:
                 nodes = json.loads(response.read().decode())
             node_map = {n['node_id']: n['name'] for n in nodes}
 
-            req = urllib.request.Request(f"{api_server}/v2/projects/{project_id}/links", headers=headers)
+            # Fetch links
+            req = urllib.request.Request(
+                f"{api_server}/v2/projects/{project_id}/links", headers=headers
+            )
             with urllib.request.urlopen(req, timeout=5) as response:
                 links = json.loads(response.read().decode())
 
@@ -161,15 +165,20 @@ def get_topology_links_sync():
         return [], "Unknown Project"
 
 
+# ---------------------------------------------------------------------------
+# Markdown Report Generator
+# ---------------------------------------------------------------------------
 def generate_markdown_report(report_dir, devices, edges, project_name,
                              device_statuses=None, config_snippets=None,
                              topology_image_path=None, include_status=True,
                              include_config=True):
-    """Generates a Markdown report file."""
+    """Generates a professional Markdown report file from device and topology data."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     md = []
+
+    # ── Header ──
     md.append("# 📋 Zenith GNS — Lab Raporu")
     md.append("")
     md.append(f"**Proje:** {project_name}  ")
@@ -178,14 +187,14 @@ def generate_markdown_report(report_dir, devices, edges, project_name,
     md.append(f"**Toplam Bağlantı:** {len(edges)}  ")
     md.append("")
 
-    # --- Topology Image ---
+    # ── Topology Image ──
     if topology_image_path and os.path.exists(topology_image_path):
         md.append("## 🗺️ Topoloji Haritası")
         md.append("")
         md.append(f"![Topoloji Haritası]({os.path.basename(topology_image_path)})")
         md.append("")
 
-    # --- Device Inventory Table ---
+    # ── Cihaz Envanteri Tablosu ──
     md.append("## 📦 Cihaz Envanteri")
     md.append("")
     if include_status:
@@ -201,7 +210,7 @@ def generate_markdown_report(report_dir, devices, edges, project_name,
             md.append(f"| {i} | **{d['name']}** | `{d['ip']}` | `{d['port']}` |")
     md.append("")
 
-    # --- Connection Matrix ---
+    # ── Link Matrix ──
     if edges:
         md.append("## 🔗 Bağlantı Matrisi (Interface & Link)")
         md.append("")
@@ -213,14 +222,9 @@ def generate_markdown_report(report_dir, devices, edges, project_name,
                 md.append(f"| {i} | **{n1}** | `{i1}` | ↔ | **{n2}** | `{i2}` |")
         md.append("")
 
-    # --- Interface Summary (from config snippets) ---
+    # ── Interface Statuses ──
     if include_config and config_snippets:
-        # Extract interface summary if available
-        has_intf_data = False
-        for dev_name, snippets in config_snippets.items():
-            if "show ip interface brief" in snippets:
-                has_intf_data = True
-                break
+        has_intf_data = any("show ip interface brief" in s for s in config_snippets.values())
 
         if has_intf_data:
             md.append("## 📊 Interface Durumları (Özet)")
@@ -234,7 +238,7 @@ def generate_markdown_report(report_dir, devices, edges, project_name,
                     md.append("```")
                     md.append("")
 
-    # --- Config Snippets ---
+    # ── Configuration Snippets ──
     if include_config and config_snippets:
         md.append("## ⚙️ Konfigürasyon Kesitleri")
         md.append("")
@@ -250,7 +254,7 @@ def generate_markdown_report(report_dir, devices, edges, project_name,
                 md.append("```")
                 md.append("")
 
-    # --- Uptime & Version Summary ---
+    # ── Uptime & Versiyon ──
     if include_config and config_snippets:
         has_version = False
         for dev_name, snippets in config_snippets.items():
@@ -271,10 +275,11 @@ def generate_markdown_report(report_dir, devices, edges, project_name,
                     md.append(f"| **{dev_name}** | `{ver_clean}` |")
             md.append("")
 
-    # --- Footer ---
+    # ── Footer ──
     md.append("---")
     md.append("*Bu rapor [Zenith GNS](https://github.com/furrkanyasar/Zenith-GNS) tarafından otomatik oluşturulmuştur.*")
 
+    # Write to file
     md_content = "\n".join(md)
     md_filename = os.path.join(report_dir, f"lab_report_{date_str}.md")
     with open(md_filename, 'w', encoding='utf-8') as f:
@@ -283,11 +288,14 @@ def generate_markdown_report(report_dir, devices, edges, project_name,
     return md_filename, md_content
 
 
+# ---------------------------------------------------------------------------
+# PDF Report Generator
+# ---------------------------------------------------------------------------
 def generate_pdf_report(report_dir, devices, edges, project_name,
                         device_statuses=None, config_snippets=None,
                         topology_image_path=None, include_status=True,
                         include_config=True):
-    """Generates a PDF report file using fpdf2."""
+    """Generates a professional PDF report file using the fpdf2 library."""
     from fpdf import FPDF
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -297,7 +305,7 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # --- Header ---
+    # ── Header ──
     pdf.set_font("Helvetica", "B", 22)
     pdf.cell(0, 12, "Zenith GNS - Lab Raporu", ln=True, align="C")
     pdf.ln(4)
@@ -309,7 +317,7 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
     pdf.cell(0, 7, f"Toplam Baglanti: {len(edges)}", ln=True)
     pdf.ln(6)
 
-    # --- Topology Image ---
+    # ── Topology Image ──
     if topology_image_path and os.path.exists(topology_image_path):
         pdf.set_font("Helvetica", "B", 16)
         pdf.cell(0, 10, "Topoloji Haritasi", ln=True)
@@ -323,7 +331,7 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
             pdf.cell(0, 7, f"(Gorsel yuklenemedi: {str(e)})", ln=True)
             pdf.ln(3)
 
-    # --- Device Inventory Table ---
+    # ── Cihaz Envanteri Tablosu ──
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, "Cihaz Envanteri", ln=True)
     pdf.ln(3)
@@ -359,7 +367,7 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
         pdf.ln()
     pdf.ln(6)
 
-    # --- Connection Matrix ---
+    # ── Link Matrix ──
     if edges:
         pdf.set_font("Helvetica", "B", 16)
         pdf.cell(0, 10, "Baglanti Matrisi", ln=True)
@@ -391,7 +399,7 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
                 pdf.ln()
         pdf.ln(6)
 
-    # --- Interface Summary ---
+    # ── Interface Statuses ──
     if include_config and config_snippets:
         has_intf = any("show ip interface brief" in s for s in config_snippets.values())
         if has_intf:
@@ -411,7 +419,7 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
                         pdf.cell(0, 4, line[:130], ln=True)
                     pdf.ln(4)
 
-    # --- Config Snippets ---
+    # ── Configuration Snippets ──
     if include_config and config_snippets:
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 16)
@@ -437,7 +445,7 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
                     pdf.cell(0, 4, line[:130], ln=True)
                 pdf.ln(4)
 
-    # --- Uptime & Version ---
+    # ── Uptime & Versiyon ──
     if include_config and config_snippets:
         has_ver = any("show version | include uptime|Version" in s for s in config_snippets.values())
         if has_ver:
@@ -455,24 +463,33 @@ def generate_pdf_report(report_dir, devices, edges, project_name,
                         pdf.cell(0, 4, line[:130], ln=True)
                     pdf.ln(3)
 
-    # --- Footer ---
+    # ── Footer ──
     pdf.set_font("Helvetica", "I", 8)
     pdf.cell(0, 10, "Bu rapor Zenith GNS tarafindan otomatik olusturulmustur.", ln=True, align="C")
 
+    # Write to file
     pdf_filename = os.path.join(report_dir, f"lab_report_{date_str}.pdf")
     pdf.output(pdf_filename)
     return pdf_filename
 
 
+# ---------------------------------------------------------------------------
+# Async Report Generation (Main entry point)
+# ---------------------------------------------------------------------------
 def generate_report_async(network_core, canvas_capture_func, report_dir, report_format="both",
                           include_status=True, include_config=True,
                           progress_callback=None):
     """
-    Main entry point: generates the report in a background thread.
-    network_core: the NetworkCore instance for pooled connections
-    canvas_capture_func: a callable that captures the canvas to a file path (called from main thread)
-    report_dir: the directory to save reports into
-    progress_callback(stage, message) is called to update UI.
+    Generates the report in a background thread. Does not block the UI.
+
+    Args:
+        network_core: Shared NetworkCore instance (session pooling)
+        canvas_capture_func: Unused (backward compatibility)
+        report_dir: Directory where the report will be saved
+        report_format: 'markdown', 'pdf', or 'both'
+        include_status: Include device up/down status
+        include_config: Include configuration snippets
+        progress_callback: Progress reporting → callback(stage, message)
     """
     def task():
         try:
@@ -484,23 +501,26 @@ def generate_report_async(network_core, canvas_capture_func, report_dir, report_
 
             os.makedirs(report_dir, exist_ok=True)
 
-            # 1. Topology image (already captured from main thread before starting)
+            # 1. Topology image (should be pre-saved from the live map tab)
             topo_img_path = os.path.join(report_dir, "topology_snapshot.png")
             img_captured = os.path.exists(topo_img_path)
 
-            # 2. Get topology edges from GNS3 API
+            # 2. Fetch topology links from GNS3 API
             if progress_callback:
                 progress_callback("progress", tr("GNS3 API'den topoloji bilgisi alınıyor..."))
-            edges, project_name = get_topology_links_sync()
+            edges, project_name = get_topology_links_sync(network_core=network_core)
 
-            # 3. Check device statuses (Parallelized for speed)
+            # 3. Check device statuses in parallel
             device_statuses = {}
             if include_status:
                 if progress_callback:
                     progress_callback("progress", tr("Cihaz durumları kontrol ediliyor (Paralel)..."))
-                
-                with ThreadPoolExecutor(max_workers=min(len(devices), 20)) as status_exec:
-                    future_to_dev = {status_exec.submit(check_device_status, d['ip'], d['port']): d['name'] for d in devices}
+
+                with ThreadPoolExecutor(max_workers=min(len(devices), 20)) as executor:
+                    future_to_dev = {
+                        executor.submit(check_device_status, d['ip'], d['port']): d['name']
+                        for d in devices
+                    }
                     for future in as_completed(future_to_dev):
                         dname = future_to_dev[future]
                         try:
@@ -508,14 +528,17 @@ def generate_report_async(network_core, canvas_capture_func, report_dir, report_
                         except Exception:
                             device_statuses[dname] = False
 
-            # 4. Get config snippets (Parallelized for massive speedup)
+            # 4. Fetch configuration snippets in parallel
             config_snippets = {}
             if include_config:
                 if progress_callback:
                     progress_callback("progress", tr("Konfigürasyon kesitleri alınıyor (Paralel)..."))
-                
-                with ThreadPoolExecutor(max_workers=min(len(devices), 15)) as config_exec:
-                    future_to_config = {config_exec.submit(get_config_snippet, network_core, d): d['name'] for d in devices}
+
+                with ThreadPoolExecutor(max_workers=min(len(devices), 15)) as executor:
+                    future_to_config = {
+                        executor.submit(get_config_snippet, network_core, d): d['name']
+                        for d in devices
+                    }
                     for future in as_completed(future_to_config):
                         dname = future_to_config[future]
                         if progress_callback:
@@ -525,7 +548,7 @@ def generate_report_async(network_core, canvas_capture_func, report_dir, report_
                         except Exception as e:
                             config_snippets[dname] = {"Error": str(e)}
 
-            # 5. Generate reports
+            # 5. Generate report in selected format
             generated_files = []
 
             if report_format in ("markdown", "both"):
@@ -554,6 +577,7 @@ def generate_report_async(network_core, canvas_capture_func, report_dir, report_
                 )
                 generated_files.append(pdf_file)
 
+            # Completion notification
             if progress_callback:
                 files_str = "\n".join([f"  [+] {os.path.basename(f)}" for f in generated_files])
                 progress_callback("done",

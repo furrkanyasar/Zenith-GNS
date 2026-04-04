@@ -1,14 +1,31 @@
+"""
+Zenith GNS — Main Application Module
+
+Desktop application for managing GNS3 virtual network devices.
+Combines device inventory, mass/individual configuration, backup,
+config comparison, ping sweep, live topology map, template engine,
+and lab report generation in a single interface.
+"""
+
 import customtkinter as ctk
 import tkinter.messagebox
 import tkinter as tk
+from tkinter import filedialog
 from PIL import Image, ImageTk
-from database import load_devices, add_device, delete_device, load_settings, save_settings
-from network_core import NetworkCore
-from translations import tr
-from report_generator import generate_report_async, capture_canvas_to_png
 import webbrowser
 import os
 import sys
+import re
+import math
+import threading
+import socket
+import difflib
+import shutil
+
+from database import load_devices, add_device, delete_device, load_settings, save_settings, BASE_DIR
+from network_core import NetworkCore
+from translations import tr, set_language
+from report_generator import generate_report_async, capture_canvas_to_png
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -75,22 +92,22 @@ class GNS3ManagerApp(ctk.CTk):
         except Exception:
             pass
 
-        self.network = NetworkCore() # Changed from NetworkCore to NetworkConnector
+        self.network = NetworkCore()
         self.tooltip_window = None
 
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(1, weight=1)  # changed to 1
+        self.grid_rowconfigure(1, weight=1)
 
         self.setup_sidebar()
 
+        # Top bar — language selector
         self.top_bar = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent", height=40)
         self.top_bar.grid(row=0, column=1, sticky="ew")
-        
-        # from database import load_settings, save_settings # Already imported at the top
+
         self.lang_var = ctk.StringVar(value=load_settings().get("language", "tr"))
         self.lang_dropdown = ctk.CTkOptionMenu(
-            self.top_bar, 
-            values=["Turkish", "English"], 
+            self.top_bar,
+            values=["Turkish", "English"],
             command=self.change_language,
             width=100
         )
@@ -107,41 +124,35 @@ class GNS3ManagerApp(ctk.CTk):
         """Cleanup before exiting."""
         try:
             self.network.disconnect_all()
-        except:
+        except Exception:
             pass
         self.destroy()
 
     def change_language(self, choice):
-        # from database import load_settings, save_settings # Already imported at the top
+        """Changes the application language and redraws the entire UI."""
+        lang = "tr" if choice == "Turkish" else "en"
         settings = load_settings()
-        settings["language"] = "tr" if choice == "Turkish" else "en"
+        settings["language"] = lang
         save_settings(settings)
+
+        # Update translation cache (no disk I/O)
+        set_language(lang)
+
         self.title("Zenith GNS")
-        
-        # Redraw entirely
         self.setup_sidebar()
         self.show_dashboard()
 
     def setup_sidebar(self):
-        # Clear existing sidebar if any
+        """Creates/redraws the sidebar. Also called on language change."""
+        # Clear existing sidebar if present
         if hasattr(self, 'sidebar_frame'):
             for widget in self.sidebar_frame.winfo_children():
                 widget.destroy()
             self.sidebar_frame.destroy()
-        try:
-            # Get the directory of the current script (portable path)
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            icon_path = os.path.join(base_path, "app_icon.ico")
-            
-            if os.path.exists(icon_path):
-                self.iconbitmap(icon_path)
-                from PIL import Image, ImageTk
-                img = ImageTk.PhotoImage(Image.open(icon_path))
-                self.wm_iconphoto(True, img)
-        except Exception as e:
-            print(f"Icon Load Error: {e}")
 
-        # Sidebar
+        # Note: Icon loading is done once in __init__, not repeated here.
+
+        # Sidebar frame
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(10, weight=1)
@@ -192,7 +203,6 @@ class GNS3ManagerApp(ctk.CTk):
         self.github_link.grid(row=12, column=0, padx=20, pady=(2, 20), sticky="s")
         self.github_link.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/furrkanyasar"))
 
-        # setup_sidebar only handles the sidebar now
 
     def clear_main_frame(self):
         for widget in self.main_frame.winfo_children():
@@ -220,13 +230,30 @@ class GNS3ManagerApp(ctk.CTk):
         inp_port.pack(side="left", padx=5, pady=10)
         
         def save_btn_click():
-            if inp_name.get() and inp_ip.get() and inp_port.get():
-                if add_device(inp_name.get(), inp_ip.get(), inp_port.get()):
-                    self.show_dashboard() # Refresh
-                else:
-                    tkinter.messagebox.showerror(tr("Hata"), tr("Bu cihaza ait isim çoktan veritabanında kayıtlı!"))
-            else:
+            name_val = inp_name.get().strip()
+            ip_val = inp_ip.get().strip()
+            port_val = inp_port.get().strip()
+
+            if not name_val or not ip_val or not port_val:
                 tkinter.messagebox.showwarning(tr("Uyarı"), tr("Lütfen cihaz eklerken tüm alanları doldurun."))
+                return
+
+            # Port validation: must be numeric
+            if not port_val.isdigit():
+                tkinter.messagebox.showwarning(tr("Uyarı"), tr("Port numarası sayısal bir değer olmalı."))
+                return
+
+            # IP format validation (simple check — also allows "localhost")
+            if ip_val not in ("localhost", "127.0.0.1"):
+                parts = ip_val.split('.')
+                if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+                    tkinter.messagebox.showwarning(tr("Uyarı"), tr("Geçersiz IP formatı. Lütfen doğru bir IP adresi girin (örn: 127.0.0.1)."))
+                    return
+
+            if add_device(name_val, ip_val, port_val):
+                self.show_dashboard()
+            else:
+                tkinter.messagebox.showerror(tr("Hata"), tr("Bu cihaza ait isim çoktan veritabanında kayıtlı!"))
 
         btn_add = ctk.CTkButton(top_frame, text=tr("Yönlendirici Ekle"), command=save_btn_click)
         btn_add.pack(side="left", padx=10, pady=10)
@@ -376,7 +403,7 @@ class GNS3ManagerApp(ctk.CTk):
         def run_indiv_config():
             commands = self.indiv_cmd_box.get("1.0", "end-1c")
             dev_name = self.dev_dropdown.get()
-            if not commands.strip() or dev_name == "No devices found":
+            if not commands.strip() or dev_name == tr("Cihaz bulunamadı"):
                 return
             
             target_dev = next((d for d in load_devices() if d['name'] == dev_name), None)
@@ -401,10 +428,8 @@ class GNS3ManagerApp(ctk.CTk):
         self.main_frame.grid_rowconfigure(5, weight=1)
 
     def show_backup(self):
+        """Yedekleme yöneticisi sekmesini gösterir."""
         self.clear_main_frame()
-        import os
-        from tkinter import filedialog
-        from database import BASE_DIR
         
         settings = load_settings()
         backup_dir = settings.get("backup_dir", "backups")
@@ -443,7 +468,7 @@ class GNS3ManagerApp(ctk.CTk):
         def run_backup():
             devices = load_devices()
             if not devices:
-                tkinter.messagebox.showwarning("Warning", "No devices registered.")
+                tkinter.messagebox.showwarning(tr("Uyarı"), tr("Veritabanında kayıtlı cihaz yok."))
                 return
             
             completed_count = 0
@@ -486,15 +511,15 @@ class GNS3ManagerApp(ctk.CTk):
         view_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         view_frame.grid(row=6, column=0, padx=20, pady=5, sticky="ew")
 
-        self.bkp_dropdown = ctk.CTkOptionMenu(view_frame, values=["No backups found"])
+        self.bkp_dropdown = ctk.CTkOptionMenu(view_frame, values=[tr("Yedek bulunamadı")])
         self.bkp_dropdown.pack(side="left", padx=(0, 10))
 
         def load_selected_backup():
             selected = self.bkp_dropdown.get()
-            if selected and selected != "No backups found":
+            if selected and selected != tr("Yedek bulunamadı"):
                 filepath = os.path.join(backup_dir, selected)
                 if os.path.exists(filepath):
-                    with open(filepath, 'r') as f:
+                    with open(filepath, 'r', encoding='utf-8') as f:
                         content = f.read()
                     self.bkp_content_box.delete("1.0", "end")
                     self.bkp_content_box.insert("end", content)
@@ -521,10 +546,8 @@ class GNS3ManagerApp(ctk.CTk):
         refresh_backup_files()
 
     def show_diff_tool(self):
+        """Shows the backup comparison (diff) tool."""
         self.clear_main_frame()
-        import os
-        import difflib
-        from database import BASE_DIR
         
         settings = load_settings()
         backup_dir = settings.get("backup_dir", "backups")
@@ -542,7 +565,7 @@ class GNS3ManagerApp(ctk.CTk):
         self.diff_dd_a = ctk.CTkOptionMenu(top_frame, values=[tr("Yedek bulunamadı")], width=200)
         self.diff_dd_a.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
 
-        from tkinter import filedialog
+        # filedialog is imported at module level
         def pick_file(dropdown):
             filepath = filedialog.askopenfilename(title=tr("Karşılaştırılacak Yedeği Seçin"), filetypes=[("Tüm Dosyalar", "*.*"), ("Metin Dosyaları", "*.txt *.cfg")])
             if filepath:
@@ -587,9 +610,9 @@ class GNS3ManagerApp(ctk.CTk):
                 self.diff_box.insert("end", err_msg + info_a + info_b + prompt)
                 return
                 
-            with open(path_a, 'r') as f:
+            with open(path_a, 'r', encoding='utf-8') as f:
                 lines_a = f.readlines()
-            with open(path_b, 'r') as f:
+            with open(path_b, 'r', encoding='utf-8') as f:
                 lines_b = f.readlines()
                 
             diff = list(difflib.unified_diff(lines_a, lines_b, fromfile=os.path.basename(path_a), tofile=os.path.basename(path_b), n=3))
@@ -657,15 +680,21 @@ class GNS3ManagerApp(ctk.CTk):
         top_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         top_frame.grid(row=1, column=0, padx=20, pady=5, sticky="ew")
 
-        ctk.CTkLabel(top_frame, text=tr("Hedef IP Adresi (Virgülle Çoklu):")).pack(side="left", padx=(0, 10))
-        self.ping_ip_entry = ctk.CTkEntry(top_frame, placeholder_text=tr("Örn. 8.8.8.8, 1.1.1.1"), width=180)
+        input_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+        input_frame.pack(side="top", fill="x", pady=(0, 10))
+
+        ctk.CTkLabel(input_frame, text=tr("Hedef IP Adresi (Virgülle Çoklu):")).pack(side="left", padx=(0, 10))
+        self.ping_ip_entry = ctk.CTkEntry(input_frame, placeholder_text=tr("Örn. 8.8.8.8, 1.1.1.1"), width=180)
         self.ping_ip_entry.pack(side="left", padx=(0, 10))
 
-        ctk.CTkLabel(top_frame, text=tr("Kaynak:")).pack(side="left", padx=(5, 5))
+        ctk.CTkLabel(input_frame, text=tr("Kaynak:")).pack(side="left", padx=(5, 5))
         devs = load_devices()
         dev_names = [tr("Tüm Cihazlar")] + [d['name'] for d in devs] if devs else [tr("Tüm Cihazlar")]
-        self.ping_src_dropdown = ctk.CTkOptionMenu(top_frame, values=dev_names, width=150)
+        self.ping_src_dropdown = ctk.CTkOptionMenu(input_frame, values=dev_names, width=150)
         self.ping_src_dropdown.pack(side="left", padx=(0, 10))
+        
+        button_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+        button_frame.pack(side="top", fill="x")
 
         def run_sweep():
             target_ip_text = self.ping_ip_entry.get()
@@ -682,7 +711,15 @@ class GNS3ManagerApp(ctk.CTk):
             if source_device != tr("Tüm Cihazlar"):
                 devices = [d for d in devices if d['name'] == source_device]
 
-            self.ping_log_box.delete("1.0", "end")
+            for widget in self.ping_container.winfo_children():
+                widget.destroy()
+                
+            self.ping_log_box = ctk.CTkTextbox(self.ping_container, font=ctk.CTkFont(size=14, weight="bold"))
+            self.ping_log_box.pack(fill="both", expand=True)
+            self.ping_log_box.tag_config("success", foreground="#00FF00")
+            self.ping_log_box.tag_config("fail", foreground="#FFA500")
+            self.ping_log_box.tag_config("error", foreground="#FF0000")
+
             msg_prefix = f"{source_device} {tr('kaynağından')}"
             msg_suffix = f"{', '.join(target_ips)} {tr('hedeflerine tarama başlatılıyor...')}"
             self.ping_log_box.insert("end", f"{msg_prefix} {msg_suffix}\n\n")
@@ -709,23 +746,168 @@ class GNS3ManagerApp(ctk.CTk):
 
             self.network.ping_sweep(devices, target_ips, callback=cb)
 
-        btn_start = ctk.CTkButton(top_frame, text=tr("Taramayı Başlat"), command=run_sweep)
+        btn_start = ctk.CTkButton(button_frame, text=tr("Taramayı Başlat"), command=run_sweep)
         btn_start.pack(side="left")
         add_tooltip(btn_start, tr("Sisteme kayıtlı cihazlardan hedeflenen IP'ye sırayla ICMP Ping paketi yollar."))
 
-        self.ping_log_box = ctk.CTkTextbox(self.main_frame, font=ctk.CTkFont(size=14, weight="bold"))
-        self.ping_log_box.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
+        def run_matrix_sweep():
+            devices = load_devices()
+            if not devices or len(devices) < 2:
+                tkinter.messagebox.showwarning(tr("Uyarı"), tr("Matris testi için en az 2 cihaz gereklidir."))
+                return
+
+            for widget in self.ping_container.winfo_children():
+                widget.destroy()
+
+            msg_lbl = ctk.CTkLabel(self.ping_container, text=tr("Cihazların aktif ağ IP adresleri tespit ediliyor...\nBu işlem topoloji boyutuna göre biraz sürebilir, lütfen bekleyin...\n"), font=ctk.CTkFont(size=14, weight="bold"))
+            msg_lbl.pack(pady=20)
+            
+            lock = threading.Lock()
+            resolved_count = 0
+            device_ips = {}
+            
+            def get_ip_task(d):
+                nonlocal resolved_count
+                ip = None
+                try:
+                    net_connect = self.network._get_session(d)
+                    out = net_connect.send_command("show ip interface brief | exclude unassigned")
+                    loop_ip = None
+                    other_ip = None
+                    for line in out.splitlines():
+                        if "Interface" in line and "IP-Address" in line: continue
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            cand_ip = parts[1]
+                            # Validate IP format: 4 octets, all numeric
+                            ip_parts = cand_ip.split('.')
+                            if len(ip_parts) == 4 and all(p.isdigit() for p in ip_parts):
+                                if not cand_ip.startswith("127."):
+                                    if "Loopback" in parts[0] and not loop_ip:
+                                        loop_ip = cand_ip
+                                    elif not other_ip:
+                                        other_ip = cand_ip
+                    ip = loop_ip if loop_ip else other_ip
+                    if not ip:
+                        ip = "NO_IP"
+                except Exception:
+                    ip = "ERROR"
+                    
+                with lock:
+                    device_ips[d['name']] = ip
+                    resolved_count += 1
+                    
+                    if resolved_count == len(devices):
+                        self.after(0, start_sweep)
+            
+            for d in devices:
+                threading.Thread(target=get_ip_task, args=(d,), daemon=True).start()
+                
+            def start_sweep():
+                valid_devices = [d for d in devices if device_ips.get(d['name'], "ERROR") not in ("NO_IP", "ERROR")]
+                target_map = {d['name']: device_ips[d['name']] for d in valid_devices}
+                target_ips = list(target_map.values())
+                
+                if len(valid_devices) < 2:
+                    msg_lbl.configure(text=tr("En az 2 adet yapılandırılmış IP adresi (Loopback vs.) bulunamadı.\nTest iptal edildi.\n"))
+                    return
+                
+                msg_lbl.configure(text=tr("Çapraz (Full-Mesh) Tarama Başlatılıyor...\nAğ cihazlarındaki gecikmeler ve Timeout'lara göre yüklenmesi zaman alabilir...\n"))
+                
+                results = {sn: {tn: "..." for tn in target_map.keys()} for sn in target_map.keys()}
+                ip_to_name = {ip: name for name, ip in target_map.items()}
+                
+                completed = 0
+                total = len(valid_devices) * len(target_ips)
+                
+                for widget in self.ping_container.winfo_children():
+                    widget.destroy()
+                    
+                self.matrix_prog_lbl = ctk.CTkLabel(self.ping_container, text=tr("Çapraz (Full-Mesh) Tarama Durumu:") + f" (0/{total})", font=ctk.CTkFont(size=14, weight="bold"))
+                self.matrix_prog_lbl.pack(pady=(10, 5))
+                
+                self.grid_container = ctk.CTkFrame(self.ping_container, fg_color="transparent")
+                self.grid_container.pack(fill="both", expand=True, padx=5, pady=5)
+                
+                routers = list(target_map.keys())
+                for i in range(len(routers) + 1):
+                    self.grid_container.grid_columnconfigure(i, weight=1)
+                    
+                self.cell_labels = {}
+                
+                tbl_hdr = ctk.CTkLabel(self.grid_container, text=tr("Kaynak"), font=ctk.CTkFont(weight="bold"))
+                tbl_hdr.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+                for c, r_name in enumerate(routers):
+                    lbl = ctk.CTkLabel(self.grid_container, text=r_name, font=ctk.CTkFont(weight="bold"))
+                    lbl.grid(row=0, column=c+1, padx=2, pady=2, sticky="ew")
+                
+                for r, src_name in enumerate(routers):
+                    row_hdr = ctk.CTkLabel(self.grid_container, text=src_name, font=ctk.CTkFont(weight="bold"))
+                    row_hdr.grid(row=r+1, column=0, padx=2, pady=2, sticky="ew")
+                    
+                    for c, tgt_name in enumerate(routers):
+                        if src_name == tgt_name:
+                            txt = "-"
+                            clr = "gray"
+                        else:
+                            txt = "..."
+                            clr = "gray"
+                            
+                        # Use a small frame to draw a border and background for cells like a real table
+                        cell_frame = ctk.CTkFrame(self.grid_container, fg_color="#333333", corner_radius=3)
+                        cell_frame.grid(row=r+1, column=c+1, padx=1, pady=1, sticky="nsew")
+                        lbl = ctk.CTkLabel(cell_frame, text=txt, text_color=clr)
+                        lbl.pack(expand=True, fill="both")
+                        self.cell_labels[(src_name, tgt_name)] = lbl
+                
+                def print_matrix():
+                    self.matrix_prog_lbl.configure(text=tr("Çapraz (Full-Mesh) Tarama Durumu:") + f" ({completed}/{total})")
+                    for sn in routers:
+                        for tn in routers:
+                            if sn != tn:
+                                st = results[sn][tn]
+                                lbl = self.cell_labels[(sn, tn)]
+                                if st == "SUCCESS":
+                                    lbl.configure(text="OK", text_color="#00FF00")
+                                elif st == "UNREACHABLE":
+                                    lbl.configure(text="UNREACH", text_color="#FFA500")
+                                elif st == "TIMEOUT":
+                                    lbl.configure(text="TIMEOUT", text_color="#FFA500")
+                                elif st == "ERROR" or st == tr("BAĞLANTI HATASI"):
+                                    lbl.configure(text="ERROR", text_color="#FF0000")
+                                elif st != "...":
+                                    lbl.configure(text=st, text_color="gray")
+
+                def cb(dev_name, status, output, ip):
+                    tgt_name = ip_to_name.get(ip, ip)
+                    if dev_name in results and tgt_name in results[dev_name]:
+                        results[dev_name][tgt_name] = status
+                    
+                    nonlocal completed
+                    with lock:
+                        completed += 1
+                        
+                    self.after(0, print_matrix)
+
+                self.network.ping_sweep(valid_devices, target_ips, callback=cb)
+
+        btn_matrix = ctk.CTkButton(button_frame, text=tr("Tüm Cihazları Birbirine Pinglet"), fg_color="#8A2BE2", hover_color="#4B0082", command=run_matrix_sweep)
+        btn_matrix.pack(side="left", padx=(10, 0))
+        add_tooltip(btn_matrix, tr("Tüm cihazların sahip oldukları gerçek IP adreslerini bularak,\nherkesin birbirine karşılıklı ping atmasını sağlar."))
+
+        self.ping_container = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.ping_container.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
         self.main_frame.grid_rowconfigure(2, weight=1)
-        
+
+        self.ping_log_box = ctk.CTkTextbox(self.ping_container, font=ctk.CTkFont(size=14, weight="bold"))
+        self.ping_log_box.pack(fill="both", expand=True)
         self.ping_log_box.tag_config("success", foreground="#00FF00")
         self.ping_log_box.tag_config("fail", foreground="#FFA500")
         self.ping_log_box.tag_config("error", foreground="#FF0000")
 
     def show_topology_map(self):
+        """Shows the live topology map tab. Syncs positions/links from GNS3."""
         self.clear_main_frame()
-        import math
-        import threading
-        import socket
 
         header = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         header.grid(row=0, column=0, pady=(20, 10), padx=20, sticky="w")
@@ -807,7 +989,7 @@ class GNS3ManagerApp(ctk.CTk):
                 s = socket.create_connection((ip, int(port)), timeout=2)
                 s.close()
                 return True
-            except:
+            except Exception:
                 return False
 
         def refresh_map():
@@ -1002,7 +1184,6 @@ class GNS3ManagerApp(ctk.CTk):
                 # Auto-save topology snapshot for Lab Report
                 def save_snapshot():
                     try:
-                        from database import BASE_DIR
                         snap_dir = os.path.join(BASE_DIR, "reports")
                         os.makedirs(snap_dir, exist_ok=True)
                         snap_path = os.path.join(snap_dir, "topology_snapshot.png")
@@ -1016,9 +1197,9 @@ class GNS3ManagerApp(ctk.CTk):
         self.after(100, refresh_map)
 
     def show_template_config(self):
+        """Şablon konfigürasyonu sekmesini gösterir. {{VAR}} kalıplarını parse eder."""
         self.clear_main_frame()
-        import re
-        
+
         header = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         header.grid(row=0, column=0, pady=(20, 10), padx=20, sticky="w")
         ctk.CTkLabel(header, text=tr("Şablon Konfigürasyonu"), font=ctk.CTkFont(size=24, weight="bold")).pack(anchor="w")
@@ -1162,9 +1343,8 @@ ip route {{{{TARGET_NETWORK}}}} {{{{TARGET_MASK}}}} {{{{NEXT_HOP_IP}}}}
         self.main_frame.grid_rowconfigure(4, weight=1)
 
     def show_report_generator(self):
+        """Lab raporu oluşturucu sekmesini gösterir."""
         self.clear_main_frame()
-        from tkinter import filedialog
-        from database import BASE_DIR
 
         header = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         header.grid(row=0, column=0, pady=(20, 10), padx=20, sticky="w")
@@ -1227,15 +1407,13 @@ ip route {{{{TARGET_NETWORK}}}} {{{{TARGET_MASK}}}} {{{{NEXT_HOP_IP}}}}
             report_dir = self.report_dir_var.get()
             os.makedirs(report_dir, exist_ok=True)
 
-            # Check for existing snapshot (auto-saved by Live Map tab)
-            from database import BASE_DIR as _BASE
-            default_snap = os.path.join(_BASE, "reports", "topology_snapshot.png")
+            # Check for topology snapshot (saved if Live Map tab was opened)
+            default_snap = os.path.join(BASE_DIR, "reports", "topology_snapshot.png")
             dest_snap = os.path.join(report_dir, "topology_snapshot.png")
 
             if os.path.exists(default_snap):
-                # Copy snapshot to report dir if different
+                # Copy if in a different directory
                 if os.path.abspath(default_snap) != os.path.abspath(dest_snap):
-                    import shutil
                     shutil.copy2(default_snap, dest_snap)
                 self.report_log_box.insert("end", f"[*] {tr('Topoloji görseli kaydedildi.')}\n")
             else:

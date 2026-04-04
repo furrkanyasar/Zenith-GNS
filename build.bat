@@ -3,7 +3,7 @@ echo.
 echo === Zenith GNS Build Script ===
 echo.
 
-REM 1. Python kontrolü
+REM 1. Check for Python
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
     set PY_CMD=python
@@ -16,44 +16,44 @@ if %errorlevel% equ 0 (
     goto :found_python
 )
 
-echo HATA: Python bulunamadi! Lutfen Python'un yuklu oldugundan emin olun.
+echo ERROR: Python not found! Please ensure Python is installed.
 pause
 exit /b 1
 
 :found_python
-echo Python komutu bulundu: %PY_CMD%
+echo Python command found: %PY_CMD%
 
-REM 2. venv kontrolü
+REM 2. Check for venv
 if exist "venv\Scripts\python.exe" goto :start_build
 
-echo Sanal ortam (venv) bulunamadi, olusturuluyor...
+echo Virtual environment (venv) not found, creating...
 if exist venv rmdir /s /q venv
 %PY_CMD% -m venv venv
 if %errorlevel% neq 0 (
-    echo HATA: venv olusturulamadi!
+    echo ERROR: Failed to create venv!
     pause
     exit /b 1
 )
-echo Kutuphaneler yukleniyor...
+echo Installing dependencies...
 call venv\Scripts\python.exe -m pip install --upgrade pip
 call venv\Scripts\pip.exe install -r requirements.txt
 
 :start_build
 echo.
-echo PyInstaller kontrol ediliyor...
+echo Checking PyInstaller...
 call venv\Scripts\pip.exe install pyinstaller
 
 echo.
-echo Zenith GNS insa ediliyor (EXE yapiliyor)...
+echo Building Zenith GNS (creating EXE)...
 call venv\Scripts\pyinstaller.exe --noconfirm --onefile --windowed --icon "app_icon.ico" --name "Zenith GNS" --add-data "venv/Lib/site-packages/customtkinter;customtkinter/" --add-data "app_icon.ico;." --add-data "assets;assets" main.py
 
 if %errorlevel% neq 0 (
     echo.
-    echo HATA: Build basarisiz oldu!
+    echo ERROR: Build failed!
     pause
     exit /b 1
 )
 
 echo.
-echo Islem tamam! EXE dosyaniz 'dist/Zenith GNS' klasorunun icinde.
+echo Build complete! The EXE file is located in the 'dist/' folder.
 pause

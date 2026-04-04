@@ -1,11 +1,50 @@
-import os
-from database import load_settings, save_settings
+"""
+Zenith GNS — Translation (i18n) Module
 
+Provides Turkish/English language support for the application UI.
+The default language is Turkish; when English is selected, the
+EN_DICT lookup dictionary is used to translate UI strings.
+
+Performance: The language preference is cached in memory so that
+each tr() call avoids disk I/O (reading settings.json).
+"""
+
+import os
+from database import load_settings
+
+# ---------------------------------------------------------------------------
+# Language Cache — Read once at startup, updated via set_language().
+# Eliminates repeated file reads on every tr() call.
+# ---------------------------------------------------------------------------
+_cached_lang = None
+
+
+def _ensure_lang_loaded():
+    """Loads language setting from settings.json once (on first call)."""
+    global _cached_lang
+    if _cached_lang is None:
+        _cached_lang = load_settings().get("language", "tr").lower()
+
+
+def set_language(lang):
+    """
+    Updates the language cache. Should be called when the user
+    changes the language so that subsequent tr() calls use the new one.
+    """
+    global _cached_lang
+    _cached_lang = lang.lower()
+
+
+# ---------------------------------------------------------------------------
+# English Translation Dictionary
+# Key = Original Turkish text, Value = English translation.
+# Keys not found in the dictionary are returned as-is (Turkish fallback).
+# ---------------------------------------------------------------------------
 EN_DICT = {
-    # General
+    # ── General ──
     "GNS3 Ağ Yöneticisi": "GNS3 Network Manager",
-    
-    # Sidebar
+
+    # ── Sidebar ──
     "GNS3 Yönetici": "GNS3 Manager",
     "GNS3 Yönetimi": "GNS3 Management",
     "Cihazlar": "Devices",
@@ -21,8 +60,8 @@ EN_DICT = {
     "Şablon Basma": "Template Config",
     "Şablonlar": "Templates",
     "Ayarlar": "Settings",
-    
-    # Tooltips
+
+    # ── Tooltip'ler ──
     "Cihazları listeler, ekleme/silme ve otomatik keşif sunar.": "Lists devices, features add/remove and auto discovery.",
     "Tüm cihazlara aynı anda ortak komutlar yollar.": "Sends common commands to all devices simultaneously.",
     "Seçilen tek bir cihaza komut gönderir.": "Sends commands to a single selected device.",
@@ -34,8 +73,8 @@ EN_DICT = {
     "GNS3 ağınızdaki cihazları ekleyin, silin ve yönetin.": "Add, remove, and manage devices in your GNS3 network.",
     "Aynı anda birden fazla cihaza komut gönderin.": "Send commands to multiple devices simultaneously.",
     "Cihazların yapılandırmalarını yedekleyin ve takip edin.": "Backup and track device configurations.",
-    
-    # Device Inventory
+
+    # ── Cihaz Envanteri ──
     "Cihaz Yönetimi": "Device Management",
     "Kayıtlı cihazlarınızı görüntüleyin ve yeni cihazlar ekleyin.": "View connected devices and add new ones.",
     "Cihaz Adı:": "Device Name:",
@@ -54,21 +93,21 @@ EN_DICT = {
     "İptal": "Cancel",
     "Kayıtlı Cihaz Yok": "No Registered Devices",
 
-    # Mass Config
+    # ── Mass Configuration ──
     "Toplu Konfigürasyon Gönderimi": "Mass Config Push",
     "Tüm cihazlara veya seçilenlere aynı anda komut gönderin.": "Send commands to all or selected devices.",
     "Gönderilecek Komut (her satıra bir komut):": "Commands to Send (one per line):",
     "Örn: \nconf t\nrouter ospf 1\nnetwork 0.0.0.0 255.255.255.255 area 0\nend\nwrite mem": "Ex: \nconf t\nrouter ospf 1\nnetwork 0.0.0.0 255.255.255.255 area 0\nend\nwrite mem",
     "Komutları Gönder": "Send Commands",
-    
-    # Backup
+
+    # ── Yedekleme ──
     "Yedekleme (Backup) Yöneticisi": "Backup Manager",
     "Tüm cihazların yapılandırmasını (startup/running config) anında yedekleyin.": "Instantly backup configurations (startup/running config) for all devices.",
     "Yedekleme Klasörü:": "Backup Directory:",
     "Klasörü Değiştir": "Change Folder",
     "Tüm Cihazları Yedekle": "Backup All Devices",
-    
-    # Compare Tool
+
+    # ── Config Compare Tool ──
     "Config Compare Tool": "Config Compare Tool",
     "Alınan iki farklı yedeği Github stiliyle (kırmızı/yeşil) karşılaştırın.": "Compare two different backups with Github-style diff (red/green).",
     "Orijinal (Dosya A):": "Original (File A):",
@@ -79,8 +118,8 @@ EN_DICT = {
     "Listeyi Yenile": "Refresh List",
     "Dosyalar tamamen aynı veya fark bulunamadı.": "Files are exactly the same or no differences found.",
     "HATA: Seçilen dosyalardan biri veya ikisi bulunamadı!\\nDosya A: ": "ERROR: One or both files could not be found!\\nFile A: ",
-    
-    # Ping Sweep
+
+    # ── Ping Sweep ──
     "Tüm cihazlardan aynı anda tek bir hedefe ping atarak ağ erişimini test edin.": "Test network reachability by pinging from multiple devices.",
     "Hedef IP Adresi (Virgülle Çoklu):": "Target IPs (Comma separated):",
     "Kaynak:": "Source:",
@@ -92,23 +131,30 @@ EN_DICT = {
     "HATA": "ERROR",
     "BAĞLANTI HATASI": "CONNECTION ERROR",
     "BİLİNMİYOR": "UNKNOWN",
+    "Matris testi için en az 2 cihaz gereklidir.": "At least 2 devices are required for matrix testing.",
+    "Cihazların aktif ağ IP adresleri tespit ediliyor...\nBu işlem topoloji boyutuna göre biraz sürebilir, lütfen bekleyin...\n\n": "Detecting active network IPs of devices...\nThis may take some time depending on topology size, please wait...\n\n",
+    "En az 2 adet yapılandırılmış IP adresi (Loopback vs.) bulunamadı.\nTest iptal edildi.\n": "Could not find at least 2 configured IP addresses (Loopbacks, etc.).\nTest cancelled.\n",
+    "Çapraz (Full-Mesh) Tarama Başlatılıyor...\nAğ cihazlarındaki gecikmeler ve Timeout'lara göre yüklenmesi zaman alabilir...\n\n": "Starting Full-Mesh Scan...\nDepending on network delays and timeouts, this may take a while to load...\n\n",
+    "Çapraz (Full-Mesh) Tarama Durumu:": "Full-Mesh Scan Status:",
+    "Tüm Cihazları Birbirine Pinglet": "Cross-Ping All Devices",
+    "Tüm cihazların sahip oldukları gerçek IP adreslerini bularak,\nherkesin birbirine karşılıklı ping atmasını sağlar.": "Finds the actual IP addresses of all devices,\nand makes them ping each other mutually.",
 
-    # Live Map
+    # ── Live Map ──
     "Live Topology Map": "Live Topology Map",
     "Cihazların çalışma durumlarını canlı izleyin. GNS3 yerleşimi otomatik senkronize edilir, cihazları sürükleyerek GNS3'teki konumlarını güncelleyebilirsiniz.": "Monitor device status live. GNS3 layout is automatically synced, you can drag devices to update their positions in GNS3.",
     "Durumları Yenile": "Refresh Status",
     "Yakınlaştır (+)": "Zoom In (+)",
     "Uzaklaştır (-)": "Zoom Out (-)",
     "Kayıtlı cihaz yok.": "No registered devices.",
-    
-    # Template
+
+    # ── Templates ──
     "Şablon Konfigürasyonu": "Template Configuration",
     "Değişken parametreler ({{VAR}}) kullanarak cihazlara özel şablonlar basın.": "Deploy device-specific templates using variable parameters ({{VAR}}).",
     "Değişken Formu (Seçili cihaz için doldurun):": "Variables Form (Fill for selected device):",
     "Cihaz Seçimi:": "Device Selection:",
     "Seçili Cihaza Şablonu Bas": "Deploy Template to Device",
-    
-    # Dialogs / General
+
+    # ── Diyaloglar / Genel ──
     "Uyarı": "Warning",
     "Lütfen tüm alanları doldurun.": "Please fill all fields.",
     "Başarılı": "Success",
@@ -197,7 +243,7 @@ EN_DICT = {
     "Oluşan şablonu (konfigürasyon taslağını) anında cihaza işler.": "Instantly pushes generated template (config draft) to device.",
     "Önizleme / Çıktı:": "Preview / Output:",
 
-    # Lab Report Generator
+    # ── Lab Raporu ──
     "Lab Raporu": "Lab Report",
     "Lab Raporu Oluşturucu": "Lab Report Generator",
     "Topoloji, cihaz envanteri ve konfigürasyon bilgilerini içeren profesyonel bir lab raporu oluşturur.": "Generates a professional lab report with topology, device inventory, and config info.",
@@ -233,8 +279,8 @@ EN_DICT = {
     "Kaydedilen dosyalar:": "Saved files:",
     "Klasör:": "Folder:",
     "Rapor oluşturulurken hata:": "Error generating report:",
-    
-    # Missing / New
+
+    # ── Additional Translations ──
     "Cihaz durumları kontrol ediliyor (Paralel)...": "Checking device statuses (Parallel)...",
     "Konfigürasyon kesitleri alınıyor (Paralel)...": "Fetching configuration snippets (Parallel)...",
     "tamamlandı.": "completed.",
@@ -251,12 +297,42 @@ EN_DICT = {
     "HATA: Seçilen dosyalardan biri veya ikisi bulunamadı!": "ERROR: One or both selected files could not be found!",
     "Var mı": "Exists",
     "Lütfen geçerli dosyalar seçin.": "Please select valid files.",
+
+    # ── Device Add Validation ──
+    "Port numarası sayısal bir değer olmalı.": "Port number must be a numeric value.",
+    "Geçersiz IP formatı. Lütfen doğru bir IP adresi girin (örn: 127.0.0.1).": "Invalid IP format. Please enter a valid IP address (e.g., 127.0.0.1).",
+
+    # ── Backup Callback Messages ──
+    "yedeği başarıyla alındı.": "backup completed successfully.",
+    "yedeklemesi başarısız:": "backup failed:",
+
+    # ── Discovery Callback Messages ──
+    "CDP taraması tamamlandı. {count} komşu görüldü, tümü zaten kayıtlı.": "CDP scan complete. {count} neighbor(s) seen, all already registered.",
+    "{count} yeni cihaz CDP keşfi ile eklendi.": "{count} new devices added via CDP discovery.",
+    "Keşif başarısız:": "Discovery failed:",
+    "{count} yeni cihaz port taraması ile bulundu.": "{count} new devices found via port scan.",
+
+    # ── GNS3 API Callback Messages ──
+    "GNS3 sunucu bağlantısı başarısız": "GNS3 server connection failed",
+    "GNS3 projesi bulunamadı.": "No GNS3 projects found.",
+    "GNS3 API üzerinden {count} cihaz bulundu.": "Found {count} devices from GNS3 API.",
+    "GNS3 API hatası:": "GNS3 API error:",
+
+    # ── Ping Matrix ──
+    "Kaynak": "Source",
 }
 
+
 def tr(text):
-    settings = load_settings()
-    lang = settings.get("language", "tr").lower()
-    if lang == "tr" or lang == "turkish":
+    """
+    Translates the given Turkish text based on the active language.
+    - Turkish mode: returns the text as-is.
+    - English mode: looks up the translation in EN_DICT.
+    - If not found: returns the original text (silent fallback).
+    """
+    _ensure_lang_loaded()
+
+    if _cached_lang in ("tr", "turkish"):
         return text
-    
+
     return EN_DICT.get(text, text)
