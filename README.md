@@ -1,4 +1,4 @@
-# Zenith GNS - GNS3 Network Manager 🎩⚒️
+# Zenith GNS - GNS3 Network Manager 
 
 **Zenith GNS**, GNS3 ortamındaki Cisco network cihazlarını merkezi bir noktadan yönetmek, konfigüre etmek ve görselleştirmek için geliştirilmiş modern bir Python masaüstü uygulamasıdır.
 
@@ -131,7 +131,11 @@ Yaptığınız tüm çalışmaları, topolojiyi ve konfigürasyonları tek bir d
 
 ---
 
-## 📖 Detailed User Guide (EN)
+<details>
+<summary><b>English Documentation (Click to expand)</b></summary>
+
+<br>
+📖 Detailed User Guide (EN)
 
 ### 1. Devices (Dashboard)
 The central inventory and management hub for all your network assets.
@@ -192,4 +196,6 @@ Solves all your documentation, topology, and configuration recording needs in a 
     - **Change Target Folder:** Full control over where your reports are saved on your computer.
     - **Open Folder Shortcut:** A quick button to open the report's destination in Windows Explorer.
 - **Visual Capture Integration:** If you have visited the "Live Map" tab, the application's most recent snapshot of your topology is embedded at the top of the report, providing a visual overhead view of the entire lab.
+
+</details>
 
